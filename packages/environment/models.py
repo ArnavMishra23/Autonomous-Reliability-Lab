@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 
 def utc_now() -> datetime:
@@ -25,6 +27,43 @@ class BillingStatus(StrEnum):
 
 class EventType(StrEnum):
     STATE_CHANGE = "state_change"
+
+
+@dataclass(frozen=True, slots=True)
+class EnvironmentMutation:
+    """A small, serializable description of one state transition."""
+
+    operation: str
+    parameters: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "parameters",
+            MappingProxyType(deepcopy(dict(self.parameters))),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class Observation:
+    """A safe, value-only representation of observable environment state."""
+
+    observation_id: str
+    timestamp: datetime
+    source: str
+    entity_type: str
+    entity_id: str
+    field: str
+    value: Any
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "value", deepcopy(self.value))
+        object.__setattr__(
+            self,
+            "metadata",
+            MappingProxyType(deepcopy(dict(self.metadata))),
+        )
 
 
 @dataclass(slots=True)
