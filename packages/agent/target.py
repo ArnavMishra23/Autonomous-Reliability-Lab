@@ -168,6 +168,23 @@ class TargetAgent:
         self._clock = clock
 
     def run(self, task: AgentTask) -> AgentRun:
+        return self._run(task, step_hook=None)
+
+    def run_with_step_hook(
+        self,
+        task: AgentTask,
+        *,
+        step_hook: Callable[[int], None],
+    ) -> AgentRun:
+        """Run with a callback before each 1-based model decision step."""
+        return self._run(task, step_hook=step_hook)
+
+    def _run(
+        self,
+        task: AgentTask,
+        *,
+        step_hook: Callable[[int], None] | None,
+    ) -> AgentRun:
         run = AgentRun(
             run_id=f"run_{uuid4().hex[:8]}",
             task_id=task.task_id,
@@ -176,9 +193,10 @@ class TargetAgent:
         )
         previous_results: list[ToolResult] = []
         system_instructions = "Use only the available tools. Do not assume unobserved state."
-
         try:
-            for _ in range(self._max_steps):
+            for step in range(1, self._max_steps + 1):
+                if step_hook is not None:
+                    step_hook(step)
                 response = self._model.complete(
                     system_instructions=system_instructions,
                     task=task,
