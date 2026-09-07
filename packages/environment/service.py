@@ -170,6 +170,44 @@ class EnvironmentService:
         self._state.events.append(event)
         return deepcopy(event)
 
+    def reconcile_subscription_state(self, *, subscription_id: str) -> EnvironmentEvent:
+        """Resolve a subscription after authoritative billing cancellation."""
+        subscription = self._state.subscriptions.get(subscription_id)
+        if subscription is None:
+            raise ValueError(f"Unknown subscription: {subscription_id}")
+        if subscription.status == SubscriptionStatus.CANCELLED:
+            raise ValueError(f"Subscription already cancelled: {subscription_id}")
+
+        billing = next(
+            (
+                account
+                for account in self._state.billing_accounts.values()
+                if account.subscription_id == subscription_id
+            ),
+            None,
+        )
+        if billing is None:
+            raise ValueError(f"No billing account for subscription: {subscription_id}")
+        if billing.status != BillingStatus.CANCELLED:
+            raise ValueError(f"Billing account is not cancelled: {billing.id}")
+
+        self._state.subscriptions[subscription_id] = replace(
+            subscription,
+            status=SubscriptionStatus.CANCELLED,
+        )
+        event = EnvironmentEvent(
+            id=f"evt_{uuid4().hex[:8]}",
+            event_type=EventType.STATE_CHANGE,
+            timestamp=utc_now(),
+            target=subscription_id,
+            field="status",
+            old_value=subscription.status.value,
+            new_value=SubscriptionStatus.CANCELLED.value,
+            metadata={"source": "billing_reconciliation"},
+        )
+        self._state.events.append(event)
+        return deepcopy(event)
+
     def get_customer(self, customer_id: str) -> Customer:
         try:
             return deepcopy(self._state.customers[customer_id])

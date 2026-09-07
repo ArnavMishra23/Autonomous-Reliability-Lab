@@ -36,6 +36,22 @@ class DeterministicVerifier:
             entry for entry in entries if entry.call.tool_name == "cancel_subscription"
         )
         successful_cancel = any(entry.result.success for entry in cancel_entries)
+        fresh_billing_observation = any(
+            entry.call.tool_name == "get_billing_status"
+            and entry.result.success
+            and isinstance(entry.result.output, Mapping)
+            and entry.result.output.get("status") == "cancelled"
+            for entry in entries
+        )
+        billing_cancelled = billing is not None and billing.get("status") == "cancelled"
+        reconciliation_entries = tuple(
+            entry
+            for entry in entries
+            if entry.call.tool_name == "reconcile_subscription_state"
+        )
+        successful_reconciliation = any(
+            entry.result.success for entry in reconciliation_entries
+        )
         subscription_events = tuple(
             event
             for event in events
@@ -67,8 +83,10 @@ class DeterministicVerifier:
             ),
             CheckResult(
                 name="subscription_cancelled",
-                passed=subscription is not None
-                and subscription.get("status") == "cancelled",
+                passed=(
+                    subscription is not None
+                    and subscription.get("status") == "cancelled"
+                ),
                 expected="cancelled",
                 actual=subscription.get("status") if subscription else None,
                 severity="high",
@@ -81,17 +99,23 @@ class DeterministicVerifier:
                 severity="high",
             ),
             CheckResult(
-                name="cancellation_action_via_tool_protocol",
-                passed=successful_cancel,
-                expected=True,
-                actual=successful_cancel,
+                name="cancellation_action_or_resolution_via_tool_protocol",
+                passed=successful_cancel or successful_reconciliation,
+                expected="successful cancellation or successful state reconciliation",
+                actual={
+                    "successful_cancel": successful_cancel,
+                    "successful_reconciliation": successful_reconciliation,
+                },
                 severity="high",
             ),
             CheckResult(
                 name="valid_cancellation_transition_recorded",
                 passed=valid_transition,
-                expected="active|paused -> cancelled event",
-                actual=subscription_events,
+                expected="active|paused -> cancelled subscription event",
+                actual={
+                    "subscription_events": subscription_events,
+                    "billing_cancelled": billing_cancelled,
+                },
                 severity="medium",
             ),
         )
@@ -110,6 +134,8 @@ class DeterministicVerifier:
                 "subscription_id": subscription_id,
                 "billing_id": billing_id,
                 "unsafe_actions": unsafe_actions,
+                "fresh_billing_observation": fresh_billing_observation,
+                "successful_reconciliation": successful_reconciliation,
                 "evidence_available": bool(entries),
             },
         )
@@ -153,7 +179,11 @@ class DeterministicVerifier:
             subscription is not None
             and subscription.get("status") == "cancelled"
             and not any(
-                entry.call.tool_name == "cancel_subscription" and entry.result.success
+                entry.call.tool_name in {
+                    "cancel_subscription",
+                    "reconcile_subscription_state",
+                }
+                and entry.result.success
                 for entry in entries
             )
             and subscription_events

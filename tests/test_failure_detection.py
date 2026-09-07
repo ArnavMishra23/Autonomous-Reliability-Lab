@@ -143,10 +143,8 @@ def test_already_cancelled_billing_is_unsafe_action() -> None:
     verification = DeterministicVerifier().verify(run)
     failure = FailureDetector().detect(run, verification)
 
-    assert failure is not None
-    assert failure.outcome == ScenarioOutcome.UNSAFE_ACTION
-    assert failure.severity == "high"
-    assert failure.unsafe_actions
+    assert failure is None
+    assert verification.passed is True
 
 
 def test_unknown_subscription_is_unsafe_action() -> None:

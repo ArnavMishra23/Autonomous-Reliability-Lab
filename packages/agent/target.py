@@ -141,6 +141,36 @@ class MockProvider:
             ToolRequest("get_billing_status", {"billing_id": self.billing_id}),
             ToolRequest("cancel_subscription", {"subscription_id": self.subscription_id}),
         )
+        latest_billing_status = next(
+            (
+                result.output.get("status")
+                for result in reversed(previous_results)
+                if result.tool_name == "get_billing_status"
+                and result.success
+                and isinstance(result.output, Mapping)
+            ),
+            None,
+        )
+        if latest_billing_status == "cancelled":
+            reconciled = any(
+                result.tool_name == "reconcile_subscription_state"
+                and result.success
+                for result in previous_results
+            )
+            if not reconciled:
+                return ModelResponse(
+                    content="Billing is cancelled; reconcile the subscription state.",
+                    tool_calls=(
+                        ToolRequest(
+                            "reconcile_subscription_state",
+                            {"subscription_id": self.subscription_id},
+                        ),
+                    ),
+                )
+            return ModelResponse(
+                content="The cancellation is resolved by the reconciled billing state.",
+                completed=True,
+            )
         if step < len(requests):
             return ModelResponse(content=f"Inspecting step {step + 1}.", tool_calls=(requests[step],))
         return ModelResponse(
@@ -178,6 +208,53 @@ class TargetAgent:
     ) -> AgentRun:
         """Run with a callback before each 1-based model decision step."""
         return self._run(task, step_hook=step_hook)
+
+    def run_with_tools(
+        self,
+        task: AgentTask,
+        tools: TargetAgentToolInterface,
+    ) -> AgentRun:
+        """Run with an alternate tool boundary using the same model configuration."""
+        original_tools = self._tools
+        self._tools = tools
+        try:
+            return self._run(task, step_hook=None)
+        finally:
+            self._tools = original_tools
+
+    def run_with_tool_wrapper(
+        self,
+        task: AgentTask,
+        wrapper: Callable[[TargetAgentToolInterface], TargetAgentToolInterface],
+    ) -> AgentRun:
+        """Run with a wrapper around the current tool boundary."""
+        return self.run_with_tools(task, wrapper(self._tools))
+
+    def run_with_tool_wrapper_and_step_hook(
+        self,
+        task: AgentTask,
+        wrapper: Callable[[TargetAgentToolInterface], TargetAgentToolInterface],
+        *,
+        step_hook: Callable[[int], None],
+    ) -> AgentRun:
+        return self._run_with_wrapped_tools(
+            task,
+            wrapper,
+            step_hook,
+        )
+
+    def _run_with_wrapped_tools(
+        self,
+        task: AgentTask,
+        wrapper: Callable[[TargetAgentToolInterface], TargetAgentToolInterface],
+        step_hook: Callable[[int], None],
+    ) -> AgentRun:
+        original_tools = self._tools
+        self._tools = wrapper(original_tools)
+        try:
+            return self._run(task, step_hook=step_hook)
+        finally:
+            self._tools = original_tools
 
     def _run(
         self,

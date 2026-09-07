@@ -53,6 +53,17 @@ def build_tool_registry(environment: EnvironmentService) -> ToolRegistry:
             environment, arguments["subscription_id"]
         ),
     )
+    registry.register(
+        ToolDefinition(
+            name="reconcile_subscription_state",
+            description="Reconcile a subscription after authoritative billing cancellation.",
+            input_schema=_schema("subscription_id"),
+            read_only=False,
+        ),
+        lambda arguments: _reconcile_subscription(
+            environment, arguments["subscription_id"]
+        ),
+    )
     return registry
 
 
@@ -94,6 +105,26 @@ def _cancel_subscription(
         raise ValueError(f"Billing account is already cancelled: {billing.id}")
 
     event = environment.cancel_subscription(subscription_id=subscription_id)
+    return {
+        "subscription": asdict(environment.get_subscription(subscription_id)),
+        "event": {
+            "id": event.id,
+            "event_type": event.event_type.value,
+            "timestamp": event.timestamp.isoformat(),
+            "target": event.target,
+            "field": event.field,
+            "old_value": event.old_value,
+            "new_value": event.new_value,
+            "metadata": event.metadata,
+        },
+    }
+
+
+def _reconcile_subscription(
+    environment: EnvironmentService,
+    subscription_id: str,
+) -> dict[str, Any]:
+    event = environment.reconcile_subscription_state(subscription_id=subscription_id)
     return {
         "subscription": asdict(environment.get_subscription(subscription_id)),
         "event": {
