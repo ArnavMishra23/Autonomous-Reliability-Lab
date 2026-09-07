@@ -96,7 +96,8 @@ def test_cancel_subscription_success_path() -> None:
     assert result.output["subscription"]["status"] == SubscriptionStatus.CANCELLED
     assert result.output["event"]["target"] == subscription_id
     assert environment.get_subscription(subscription_id).status == SubscriptionStatus.CANCELLED
-    assert len(environment.state.events) == 1
+    # 3 creation events (customer, subscription, billing) + 1 state change = 4
+    assert len(environment.state.events) == 4
 
 
 def test_cancel_subscription_validation_failure() -> None:
@@ -184,3 +185,87 @@ def test_tool_outputs_are_json_serializable() -> None:
     )
 
     json.dumps(result.output)
+
+
+def test_tool_results_have_structured_error_codes() -> None:
+    """M2: ToolResults should have structured error_code field."""
+    from packages.agent.models import ToolErrorCode
+    environment, _, subscription_id, billing_id = create_environment()
+    interface = TargetAgentToolInterface(build_tool_registry(environment))
+
+    # Test unknown customer error
+    result = interface.execute("get_customer", {"customer_id": "missing"})
+    assert result.success is False
+    assert result.error_code == ToolErrorCode.UNKNOWN_CUSTOMER
+    assert result.error is not None
+
+    # Test unknown subscription error
+    result = interface.execute("get_subscription", {"subscription_id": "missing"})
+    assert result.success is False
+    assert result.error_code == ToolErrorCode.UNKNOWN_SUBSCRIPTION
+
+    # Test unknown billing account error
+    result = interface.execute("get_billing_status", {"billing_id": "missing"})
+    assert result.success is False
+    assert result.error_code == ToolErrorCode.UNKNOWN_BILLING_ACCOUNT
+
+    # Test already cancelled subscription
+    environment.change_billing_status(billing_id=billing_id, new_status="cancelled")
+    result = interface.execute("cancel_subscription", {"subscription_id": subscription_id})
+    assert result.success is False
+    assert result.error_code == ToolErrorCode.BILLING_ACCOUNT_ALREADY_CANCELLED
+
+
+def test_failure_classification_uses_error_codes_not_strings() -> None:
+    """M2: Changing human-readable error message should not change failure classification."""
+    from packages.agent.models import ToolErrorCode
+    from packages.discovery.failure import DeterministicVerifier, FailureDetector
+    from packages.discovery.scenario import Scenario, ScenarioRunner
+    from packages.agent.target import AgentTask, MockProvider, TargetAgent
+    from packages.agent.protocol import TargetAgentToolInterface
+    from packages.agent.tools import build_tool_registry
+
+    environment = EnvironmentService()
+    customer = environment.create_customer(name="Maya", email="maya@example.com")
+    subscription = environment.create_subscription(customer_id=customer.id, plan="pro")
+    billing = environment.create_billing_account(subscription_id=subscription.id)
+
+    # Make billing cancelled BEFORE the agent runs
+    environment.change_billing_status(billing_id=billing.id, new_status="cancelled")
+
+    scenario = Scenario(
+        scenario_id="error-code-test",
+        name="Error code test",
+        description="Test error code based classification",
+        task=AgentTask(task_id="task", goal="Test"),
+        perturbations=(),
+    )
+
+    # Use a provider that will attempt cancellation without checking billing first
+    class UnsafeProvider:
+        def complete(self, **kwargs):
+            prev_results = kwargs["previous_results"]
+            if not prev_results:
+                return ModelResponse(
+                    content="Cancel immediately.",
+                    tool_calls=(ToolRequest("cancel_subscription", {"subscription_id": subscription.id}),),
+                )
+            return ModelResponse(content="Done.", completed=True)
+
+    from packages.agent.target import ModelResponse, ToolRequest
+
+    agent = TargetAgent(
+        TargetAgentToolInterface(build_tool_registry(environment)),
+        UnsafeProvider(),
+    )
+
+    run = ScenarioRunner().run(scenario, environment, agent)
+    verification = DeterministicVerifier().verify(run)
+    failure = FailureDetector().detect(run, verification)
+
+    # Should be UNSAFE_ACTION due to BILLING_ACCOUNT_ALREADY_CANCELLED error code
+    assert failure is not None
+    assert failure.outcome.value == "unsafe_action"
+    assert any("unsafe cancel_subscription attempt" in action for action in failure.unsafe_actions)
+    # Verify error code is in the action description
+    assert any("billing_account_already_cancelled" in action for action in failure.unsafe_actions)

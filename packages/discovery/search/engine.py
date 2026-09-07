@@ -6,7 +6,6 @@ from uuid import uuid4
 
 from packages.agent.target import TargetAgent
 from packages.discovery.failure.detector import FailureDetector
-from packages.discovery.failure.verifier import DeterministicVerifier
 from packages.discovery.scenario.runner import ScenarioRunner
 from packages.environment.service import EnvironmentService
 
@@ -47,7 +46,6 @@ class DiscoveryEngine:
         started_at = self._clock()
         state = DiscoveryState(started_at=started_at)
         candidates = space.enumerate_candidates()
-        verifier = DeterministicVerifier()
         status = DiscoveryStatus.COMPLETED
         error: str | None = None
         decisions: list[dict[str, object]] = []
@@ -76,9 +74,8 @@ class DiscoveryEngine:
                 try:
                     scenario = generator.generate(candidate)
                     scenario_run = runner.run(scenario, environment, agent)
-                    verification = verifier.verify(scenario_run)
-                    failure = failure_detector.detect(scenario_run, verification)
-                    state.record(candidate, scenario_run, verification, failure)
+                    failure = failure_detector.detect(scenario_run)
+                    state.record(candidate, scenario_run, failure_detector._verifier.verify(scenario_run), failure)
                 except Exception as exc:
                     status = DiscoveryStatus.FAILED
                     error = f"Unrecoverable discovery error for {candidate.candidate_id}: {exc}"

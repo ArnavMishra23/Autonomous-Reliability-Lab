@@ -5,9 +5,9 @@ from dataclasses import dataclass, field, is_dataclass
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Callable, Mapping, Protocol, Sequence
-from uuid import uuid4
 
-from .models import ToolDefinition, ToolResult, ToolTrace
+from .models import ToolDefinition, ToolResult, ToolTrace, generate_id
+from packages.environment.models import Clock, DefaultClock
 from .protocol import TargetAgentToolInterface
 
 
@@ -180,7 +180,11 @@ class MockProvider:
 
 
 class TargetAgent:
-    """Runs a replaceable model through the explicit tool protocol boundary."""
+    """Runs a replaceable model through the explicit tool protocol boundary.
+
+    The agent configuration (model, max_steps, clock) is reusable.
+    Each run receives its own tool interface, ensuring isolation between runs.
+    """
 
     def __init__(
         self,
@@ -188,26 +192,31 @@ class TargetAgent:
         model: ModelProvider,
         *,
         max_steps: int = 10,
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Clock | None = None,
     ) -> None:
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
-        self._tools = tools
+        self._default_tools = tools
         self._model = model
         self._max_steps = max_steps
-        self._clock = clock
+        self._clock = clock or DefaultClock()
 
-    def run(self, task: AgentTask) -> AgentRun:
-        return self._run(task, step_hook=None)
+    @property
+    def default_tools(self) -> TargetAgentToolInterface:
+        return self._default_tools
+
+    def run(self, task: AgentTask, *, tools: TargetAgentToolInterface | None = None) -> AgentRun:
+        return self._run(task, step_hook=None, tools=tools)
 
     def run_with_step_hook(
         self,
         task: AgentTask,
         *,
         step_hook: Callable[[int], None],
+        tools: TargetAgentToolInterface | None = None,
     ) -> AgentRun:
         """Run with a callback before each 1-based model decision step."""
-        return self._run(task, step_hook=step_hook)
+        return self._run(task, step_hook=step_hook, tools=tools)
 
     def run_with_tools(
         self,
@@ -215,20 +224,18 @@ class TargetAgent:
         tools: TargetAgentToolInterface,
     ) -> AgentRun:
         """Run with an alternate tool boundary using the same model configuration."""
-        original_tools = self._tools
-        self._tools = tools
-        try:
-            return self._run(task, step_hook=None)
-        finally:
-            self._tools = original_tools
+        return self._run(task, step_hook=None, tools=tools)
 
     def run_with_tool_wrapper(
         self,
         task: AgentTask,
         wrapper: Callable[[TargetAgentToolInterface], TargetAgentToolInterface],
+        *,
+        tools: TargetAgentToolInterface | None = None,
     ) -> AgentRun:
-        """Run with a wrapper around the current tool boundary."""
-        return self.run_with_tools(task, wrapper(self._tools))
+        """Run with a wrapper around the current (or provided) tool boundary."""
+        base_tools = tools or self._default_tools
+        return self._run(task, step_hook=None, tools=wrapper(base_tools))
 
     def run_with_tool_wrapper_and_step_hook(
         self,
@@ -236,38 +243,25 @@ class TargetAgent:
         wrapper: Callable[[TargetAgentToolInterface], TargetAgentToolInterface],
         *,
         step_hook: Callable[[int], None],
+        tools: TargetAgentToolInterface | None = None,
     ) -> AgentRun:
-        return self._run_with_wrapped_tools(
-            task,
-            wrapper,
-            step_hook,
-        )
-
-    def _run_with_wrapped_tools(
-        self,
-        task: AgentTask,
-        wrapper: Callable[[TargetAgentToolInterface], TargetAgentToolInterface],
-        step_hook: Callable[[int], None],
-    ) -> AgentRun:
-        original_tools = self._tools
-        self._tools = wrapper(original_tools)
-        try:
-            return self._run(task, step_hook=step_hook)
-        finally:
-            self._tools = original_tools
+        base_tools = tools or self._default_tools
+        return self._run(task, step_hook=step_hook, tools=wrapper(base_tools))
 
     def _run(
         self,
         task: AgentTask,
         *,
         step_hook: Callable[[int], None] | None,
+        tools: TargetAgentToolInterface | None = None,
     ) -> AgentRun:
-        self._tools.reset_trace()
+        active_tools = tools or self._default_tools
+        active_tools.reset_trace()
         run = AgentRun(
-            run_id=f"run_{uuid4().hex[:8]}",
+            run_id=generate_id("run_"),
             task_id=task.task_id,
             status=AgentRunStatus.RUNNING,
-            started_at=self._clock(),
+            started_at=self._clock.now(),
         )
         previous_results: list[ToolResult] = []
         system_instructions = "Use only the available tools. Do not assume unobserved state."
@@ -278,7 +272,7 @@ class TargetAgent:
                 response = self._model.complete(
                     system_instructions=system_instructions,
                     task=task,
-                    available_tools=self._tools.available_tools,
+                    available_tools=active_tools.available_tools,
                     previous_results=tuple(previous_results),
                 )
                 if not isinstance(response, ModelResponse):
@@ -291,7 +285,7 @@ class TargetAgent:
                         )
                     run.status = AgentRunStatus.SUCCEEDED
                     run.final_result = response.content
-                    return self._finish(run)
+                    return self._finish(run, active_tools)
                 if len(response.tool_calls) != 1:
                     return self._fail(
                         run,
@@ -301,24 +295,24 @@ class TargetAgent:
                 request = response.tool_calls[0]
                 if not isinstance(request, ToolRequest):
                     return self._fail(run, "Malformed model response: invalid tool request")
-                result = self._tools.execute(request.tool_name, request.arguments)
+                result = active_tools.execute(request.tool_name, request.arguments)
                 previous_results.append(result)
-                run.trace = self._tools.trace
+                run.trace = active_tools.trace
                 if not result.success:
                     return self._fail(run, result.error or "Tool execution failed")
             return self._fail(run, f"Maximum agent steps exceeded: {self._max_steps}")
         except Exception as exc:
             return self._fail(run, f"Model execution failed: {exc}")
 
-    def _finish(self, run: AgentRun) -> AgentRun:
-        run.finished_at = self._clock()
-        run.trace = self._tools.trace
+    def _finish(self, run: AgentRun, active_tools: TargetAgentToolInterface) -> AgentRun:
+        run.finished_at = self._clock.now()
+        run.trace = active_tools.trace
         return run
 
     def _fail(self, run: AgentRun, error: str) -> AgentRun:
         run.status = AgentRunStatus.FAILED
         run.error = error
-        return self._finish(run)
+        return self._finish(run, self._default_tools)
 
 
 def _json_value(value: Any) -> Any:

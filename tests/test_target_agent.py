@@ -238,3 +238,130 @@ def test_complete_agent_run_is_inspectable_and_json_serializable() -> None:
     assert payload["status"] == AgentRunStatus.SUCCEEDED.value
     assert payload["trace"]
     assert payload["finished_at"] is not None
+
+
+def test_target_agent_multiple_runs_with_same_interface_are_isolated() -> None:
+    """H4: Multiple runs with the same tool interface must not cross-contaminate traces.
+    
+    The agent's default_tools should not be mutated between runs. The environment
+    state is expected to be managed by the caller (e.g., ScenarioRunner restores it).
+    """
+    environment, customer_id, subscription_id, billing_id = create_environment()
+    interface = TargetAgentToolInterface(build_tool_registry(environment))
+    original_state = environment.snapshot()
+
+    agent = TargetAgent(
+        interface,
+        MockProvider(customer_id=customer_id, subscription_id=subscription_id, billing_id=billing_id),
+    )
+
+    # Run 1
+    run1 = agent.run(AgentTask(task_id="run1", goal="Test"))
+    assert run1.status == AgentRunStatus.SUCCEEDED
+
+    # Restore environment to original state (caller's responsibility)
+    environment.restore(original_state)
+
+    # Run 2 - using same interface
+    run2 = agent.run(AgentTask(task_id="run2", goal="Test"))
+    assert run2.status == AgentRunStatus.SUCCEEDED
+
+    # Traces should be separate objects (each run gets fresh trace)
+    assert run1.trace is not run2.trace
+    assert len(run1.trace.entries) > 0
+    assert len(run2.trace.entries) > 0
+
+    # Trace entries should be independent
+    assert run1.trace.entries is not run2.trace.entries
+
+    # The agent's default_tools should be unchanged
+    assert agent.default_tools is interface
+
+
+def test_target_agent_run_with_tools_does_not_mutate_default_interface() -> None:
+    """H4: run_with_tools must not mutate the agent's default tool interface."""
+    environment, customer_id, subscription_id, billing_id = create_environment()
+    default_interface = TargetAgentToolInterface(build_tool_registry(environment))
+    alternate_interface = TargetAgentToolInterface(build_tool_registry(environment))
+
+    agent = TargetAgent(
+        default_interface,
+        MockProvider(customer_id=customer_id, subscription_id=subscription_id, billing_id=billing_id),
+    )
+
+    # Verify default interface is unchanged before
+    assert agent.default_tools is default_interface
+
+    # Run with alternate tools
+    run = agent.run_with_tools(
+        AgentTask(task_id="run1", goal="Test"),
+        alternate_interface,
+    )
+
+    # Default interface should be unchanged
+    assert agent.default_tools is default_interface
+    assert run.status == AgentRunStatus.SUCCEEDED
+
+
+def test_target_agent_tool_wrapper_does_not_mutate_default_interface() -> None:
+    """H4: run_with_tool_wrapper must not mutate the agent's default tool interface."""
+    environment, customer_id, subscription_id, billing_id = create_environment()
+    default_interface = TargetAgentToolInterface(build_tool_registry(environment))
+
+    agent = TargetAgent(
+        default_interface,
+        MockProvider(customer_id=customer_id, subscription_id=subscription_id, billing_id=billing_id),
+    )
+
+    def identity_wrapper(tools):
+        return tools
+
+    # Verify default interface is unchanged before
+    assert agent.default_tools is default_interface
+
+    # Run with wrapper
+    run = agent.run_with_tool_wrapper(
+        AgentTask(task_id="run1", goal="Test"),
+        identity_wrapper,
+    )
+
+    # Default interface should be unchanged
+    assert agent.default_tools is default_interface
+    assert run.status == AgentRunStatus.SUCCEEDED
+
+
+def test_target_agent_concurrent_run_simulation_is_isolated() -> None:
+    """H4: Simulated concurrent runs (alternating steps) must not leak state.
+    
+    Each run should use a fresh environment state to avoid cross-contamination.
+    The agent configuration should remain reusable.
+    """
+    environment, customer_id, subscription_id, billing_id = create_environment()
+    interface1 = TargetAgentToolInterface(build_tool_registry(environment))
+    interface2 = TargetAgentToolInterface(build_tool_registry(environment))
+    original_state = environment.snapshot()
+
+    agent = TargetAgent(
+        interface1,
+        MockProvider(customer_id=customer_id, subscription_id=subscription_id, billing_id=billing_id),
+    )
+
+    # Simulate interleaved execution by running with different interfaces
+    run1 = agent.run(AgentTask(task_id="run1", goal="Test"))
+    environment.restore(original_state)
+    run2 = agent.run_with_tools(AgentTask(task_id="run2", goal="Test"), interface2)
+    environment.restore(original_state)
+    run3 = agent.run(AgentTask(task_id="run3", goal="Test"))
+
+    # All should succeed independently
+    assert run1.status == AgentRunStatus.SUCCEEDED
+    assert run2.status == AgentRunStatus.SUCCEEDED
+    assert run3.status == AgentRunStatus.SUCCEEDED
+
+    # All traces should be independent
+    assert run1.trace is not run2.trace
+    assert run2.trace is not run3.trace
+    assert run1.trace is not run3.trace
+
+    # The agent's default_tools should remain unchanged
+    assert agent.default_tools is interface1

@@ -118,13 +118,52 @@ class CausalAnalyzer:
     def extract_timeline(self, scenario_run: ScenarioRun) -> tuple[Mapping[str, Any], ...]:
         payload = deepcopy(scenario_run.to_dict())
         timeline: list[dict[str, Any]] = []
-        for index, event in enumerate(payload.get("final_environment", {}).get("events", ())):
-            timeline.append({"sequence": index, "kind": "environment_event", "value": event})
+
+        env_events = list(payload.get("final_environment", {}).get("events", ()))
+        applied_perturbations = list(payload.get("applied_perturbations", ()))
         trace = payload.get("agent_run", {}).get("trace", []) if payload.get("agent_run") else []
-        base = len(timeline)
-        for index, entry in enumerate(trace):
-            timeline.append({"sequence": base + index * 2, "kind": "tool_call", "value": entry["call"]})
-            timeline.append({"sequence": base + index * 2 + 1, "kind": "tool_result", "value": entry["result"]})
+
+        perturbation_by_step: dict[int | None, list[dict[str, Any]]] = {}
+        for pert in applied_perturbations:
+            step = pert.get("step")
+            event_id = pert.get("event_id")
+            env_event = next((e for e in env_events if e.get("id") == event_id), None)
+            if env_event:
+                perturbation_by_step.setdefault(step, []).append(env_event)
+
+        before_run_events = perturbation_by_step.get(None, [])
+        for event in before_run_events:
+            timeline.append({"sequence": len(timeline), "kind": "environment_event", "value": event})
+
+        tool_call_index = 0
+        max_agent_step = max((p.get("step", 0) for p in applied_perturbations if p.get("step") is not None), default=0)
+        max_agent_step = max(max_agent_step, len(trace))
+
+        for step in range(1, max_agent_step + 1):
+            step_perturbations = perturbation_by_step.get(step, [])
+            for event in step_perturbations:
+                timeline.append({"sequence": len(timeline), "kind": "environment_event", "value": event})
+
+            while tool_call_index < len(trace):
+                entry = trace[tool_call_index]
+                call = entry["call"]
+                result = entry["result"]
+                call_step = call.get("metadata", {}).get("agent_step") if isinstance(call.get("metadata"), Mapping) else None
+                if call_step is None:
+                    call_step = tool_call_index + 1
+                if call_step == step:
+                    timeline.append({"sequence": len(timeline), "kind": "tool_call", "value": call})
+                    timeline.append({"sequence": len(timeline), "kind": "tool_result", "value": result})
+                    tool_call_index += 1
+                else:
+                    break
+
+        while tool_call_index < len(trace):
+            entry = trace[tool_call_index]
+            timeline.append({"sequence": len(timeline), "kind": "tool_call", "value": entry["call"]})
+            timeline.append({"sequence": len(timeline), "kind": "tool_result", "value": entry["result"]})
+            tool_call_index += 1
+
         return tuple(timeline)
 
     @staticmethod

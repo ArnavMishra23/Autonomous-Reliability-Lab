@@ -3,9 +3,9 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Callable, Mapping
-from uuid import uuid4
 
-from .models import ToolCall, ToolDefinition, ToolResult, ToolTrace, utc_now
+from .models import ToolCall, ToolDefinition, ToolResult, ToolTrace, ToolErrorCode, ToolError, generate_id, utc_now
+from packages.environment.models import IdProvider, Clock, DefaultIdProvider, DefaultClock
 
 ToolImplementation = Callable[[dict[str, Any]], Any]
 
@@ -13,10 +13,16 @@ ToolImplementation = Callable[[dict[str, Any]], Any]
 class ToolRegistry:
     """Registers trusted internal tools and records their execution trace."""
 
-    def __init__(self, *, clock: Callable[[], datetime] = utc_now) -> None:
+    def __init__(
+        self,
+        *,
+        clock: Clock | None = None,
+        id_provider: IdProvider | None = None,
+    ) -> None:
         self._tools: dict[str, tuple[ToolDefinition, ToolImplementation]] = {}
         self._trace = ToolTrace()
-        self._clock = clock
+        self._clock = clock or DefaultClock()
+        self._id_provider = id_provider or DefaultIdProvider()
 
     def register(
         self,
@@ -53,15 +59,15 @@ class ToolRegistry:
 
     def execute(self, tool_name: str, arguments: Mapping[str, Any]) -> ToolResult:
         call = ToolCall(
-            call_id=f"call_{uuid4().hex[:8]}",
+            call_id=self._id_provider.generate("call_"),
             tool_name=tool_name,
             arguments=arguments if isinstance(arguments, Mapping) else {},
-            timestamp=self._clock(),
+            timestamp=self._clock.now(),
         )
         try:
             definition, implementation = self._tools[tool_name]
         except KeyError:
-            result = self._failure(call, f"Unknown tool: {tool_name}")
+            result = self._failure(call, f"Unknown tool: {tool_name}", ToolErrorCode.UNKNOWN_TOOL)
             self._trace.append(call, result)
             return result
 
@@ -74,12 +80,15 @@ class ToolRegistry:
                 success=True,
                 output=deepcopy(output),
                 error=None,
-                timestamp=self._clock(),
+                error_code=None,
+                timestamp=self._clock.now(),
             )
+        except ToolError as exc:
+            result = self._failure(call, str(exc), exc.error_code)
         except (TypeError, ValueError, KeyError) as exc:
-            result = self._failure(call, str(exc))
+            result = self._failure(call, str(exc), ToolErrorCode.INVALID_ARGUMENTS)
         except Exception as exc:
-            result = self._failure(call, f"Tool execution failed: {exc}")
+            result = self._failure(call, f"Tool execution failed: {exc}", ToolErrorCode.TOOL_EXECUTION_FAILED)
 
         self._trace.append(call, result)
         return self._trace.snapshot().entries[-1].result
@@ -111,12 +120,13 @@ class ToolRegistry:
                 raise TypeError(f"Argument {name} must be a string")
         return deepcopy(dict(arguments))
 
-    def _failure(self, call: ToolCall, error: str) -> ToolResult:
+    def _failure(self, call: ToolCall, error: str, error_code: ToolErrorCode = ToolErrorCode.TOOL_EXECUTION_FAILED) -> ToolResult:
         return ToolResult(
             call_id=call.call_id,
             tool_name=call.tool_name,
             success=False,
             output=None,
             error=error or "Tool execution failed",
-            timestamp=self._clock(),
+            error_code=error_code,
+            timestamp=self._clock.now(),
         )

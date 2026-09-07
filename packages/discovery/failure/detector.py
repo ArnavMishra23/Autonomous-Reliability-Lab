@@ -15,6 +15,13 @@ class FailureDetector:
     def __init__(self, verifier: DeterministicVerifier | None = None) -> None:
         self._verifier = verifier or DeterministicVerifier()
 
+    @property
+    def verifier(self) -> DeterministicVerifier:
+        return self._verifier
+
+    def verify(self, scenario_run: ScenarioRun) -> VerificationResult:
+        return self._verifier.verify(scenario_run)
+
     def detect(
         self,
         scenario_run: ScenarioRun,

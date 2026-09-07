@@ -32,6 +32,7 @@ class RegressionTestRunner:
         agent: TargetAgent,
         starting_state: EnvironmentState,
     ) -> RegressionRunResult:
+        environment.restore(starting_state)
         try:
             scenario_run = self._scenario_runner.run(
                 regression_test.scenario,
@@ -72,6 +73,8 @@ class RegressionTestRunner:
                 environment_restored=environment.snapshot() == starting_state,
                 errors=(str(exc),),
             )
+        finally:
+            environment.restore(starting_state)
 
     def run_repaired(
         self,
@@ -85,6 +88,7 @@ class RegressionTestRunner:
             intervention=regression_test.validated_intervention,
             source_hypothesis_id="hypothesis_stale_observation",
         )
+        environment.restore(starting_state)
         try:
             result = self._counterfactual.execute(
                 regression_test.scenario,
@@ -135,3 +139,5 @@ class RegressionTestRunner:
                 environment_restored=environment.snapshot() == starting_state,
                 errors=(str(exc),),
             )
+        finally:
+            environment.restore(starting_state)

@@ -207,3 +207,45 @@ def test_runner_reports_regression_when_repaired_outcome_changes() -> None:
     result = RegressionTestRunner().run_repaired(broken, environment, agent, starting_state)
 
     assert result.status == RegressionStatus.REGRESSED
+
+
+def test_original_phase_restores_supplied_starting_state_even_when_contaminated() -> None:
+    """H1: Regression runner must restore the supplied starting state before execution,
+    not rely on whatever state happens to be present."""
+    environment, _, agent, starting_state, regression = build_regression()
+    runner = RegressionTestRunner()
+
+    # Contaminate the environment BEFORE calling run_original
+    environment.change_billing_status(
+        billing_id=list(environment.snapshot().billing_accounts.keys())[0],
+        new_status=list(environment.snapshot().billing_accounts.values())[0].status,  # no-op but mutates
+    )
+    # Add a bogus customer to contaminate
+    environment.create_customer(name="Contaminant", email="contaminant@example.com")
+
+    # The environment is now contaminated
+    assert environment.snapshot() != starting_state
+
+    # run_original should still use the supplied starting_state and restore it afterward
+    original = runner.run_original(regression, environment, agent, starting_state)
+
+    assert original.status == RegressionStatus.PASSED
+    assert original.environment_restored is True
+    # Environment should be restored to the supplied starting_state
+    assert environment.snapshot() == starting_state
+
+
+def test_repaired_phase_restores_supplied_starting_state_even_when_contaminated() -> None:
+    """H1: run_repaired must also restore the supplied starting state before execution."""
+    environment, _, agent, starting_state, regression = build_regression()
+    runner = RegressionTestRunner()
+
+    # Contaminate the environment
+    environment.create_customer(name="Contaminant", email="contaminant@example.com")
+    assert environment.snapshot() != starting_state
+
+    repaired = runner.run_repaired(regression, environment, agent, starting_state)
+
+    assert repaired.status == RegressionStatus.PASSED
+    assert repaired.environment_restored is True
+    assert environment.snapshot() == starting_state

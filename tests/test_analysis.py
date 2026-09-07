@@ -144,3 +144,42 @@ def test_analysis_does_not_mutate_run_or_environment() -> None:
 
     assert run.to_dict() == before_run
     assert environment.snapshot() == before_environment
+
+
+def test_causal_timeline_orders_step4_perturbation_after_step1_2_observations() -> None:
+    """H3: Causal timeline must correctly order perturbation at step 4 after step 1-2 observations."""
+    environment, scenario, agent, subscription_id, billing_id = create_flagship()
+    run = ScenarioRunner().run(scenario, environment, agent)
+
+    timeline = CausalAnalyzer().extract_timeline(run)
+
+    # Find sequence numbers for key events
+    sequences = {}
+    for item in timeline:
+        kind = item["kind"]
+        if kind == "environment_event":
+            event = item["value"]
+            if event.get("target") == billing_id and event.get("field") == "status":
+                sequences["perturbation_step4"] = item["sequence"]
+        elif kind == "tool_result":
+            result = item["value"]
+            call = next((t for t in timeline if t["kind"] == "tool_call" and t["sequence"] == item["sequence"] - 1), {})
+            tool_name = call.get("value", {}).get("tool_name", "")
+            if tool_name == "get_customer" and "customer" not in sequences:
+                sequences["get_customer"] = item["sequence"]
+            elif tool_name == "get_subscription" and "get_subscription" not in sequences:
+                sequences["get_subscription"] = item["sequence"]
+            elif tool_name == "get_billing_status" and "get_billing_status_1" not in sequences:
+                sequences["get_billing_status_1"] = item["sequence"]
+
+    # Perturbation at step 4 should occur after step 1 and 2 observations
+    # (MockProvider does get_customer, get_subscription, get_billing_status in steps 1-3)
+    # The step 4 perturbation happens before the agent's 4th decision cycle
+    assert sequences["get_customer"] < sequences["perturbation_step4"]
+    assert sequences["get_subscription"] < sequences["perturbation_step4"]
+    # The first get_billing_status is at step 3, before the step 4 perturbation
+    assert sequences["get_billing_status_1"] < sequences["perturbation_step4"]
+
+    # Verify the timeline is strictly ordered
+    all_sequences = [item["sequence"] for item in timeline]
+    assert all_sequences == sorted(all_sequences)

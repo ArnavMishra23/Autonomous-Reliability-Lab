@@ -3,16 +3,20 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable
-from uuid import uuid4
+from enum import Enum
+from typing import Any, Iterable, Type, TypeVar
 
 from .models import (
     BillingAccount,
     BillingStatus,
     Customer,
+    DefaultClock,
+    DefaultIdProvider,
     EnvironmentMutation,
     EnvironmentEvent,
     EventType,
+    IdProvider,
+    Clock,
     Observation,
     Subscription,
     SubscriptionStatus,
@@ -20,12 +24,39 @@ from .models import (
 )
 from .state import EnvironmentState
 
+T = TypeVar("T", bound=Enum)
+
+
+def _normalize_enum(value: T | str, enum_type: Type[T], field_name: str) -> T:
+    """Normalize a string or enum value to the given enum type."""
+    if isinstance(value, enum_type):
+        return value
+    if isinstance(value, str):
+        try:
+            return enum_type(value)
+        except ValueError as exc:
+            valid_values = [e.value for e in enum_type]
+            raise ValueError(
+                f"Invalid {field_name}: '{value}'. Valid values: {valid_values}"
+            ) from exc
+    raise TypeError(
+        f"{field_name} must be a {enum_type.__name__} or string, got {type(value).__name__}"
+    )
+
 
 class EnvironmentService:
     """Controls the authoritative simulated environment."""
 
-    def __init__(self, state: EnvironmentState | None = None) -> None:
+    def __init__(
+        self,
+        state: EnvironmentState | None = None,
+        *,
+        id_provider: IdProvider | None = None,
+        clock: Clock | None = None,
+    ) -> None:
         self._state = deepcopy(state) if state is not None else EnvironmentState()
+        self._id_provider = id_provider or DefaultIdProvider()
+        self._clock = clock or DefaultClock()
 
     @property
     def state(self) -> EnvironmentState:
@@ -39,11 +70,22 @@ class EnvironmentService:
         email: str,
     ) -> Customer:
         customer = Customer(
-            id=f"cust_{uuid4().hex[:8]}",
+            id=self._id_provider.generate("cust_"),
             name=name,
             email=email,
         )
         self._state.customers[customer.id] = customer
+        event = EnvironmentEvent(
+            id=self._id_provider.generate("evt_"),
+            event_type=EventType.CUSTOMER_CREATED,
+            timestamp=self._clock.now(),
+            target=customer.id,
+            field="customer",
+            old_value=None,
+            new_value={"name": name, "email": email},
+            metadata={"source": "creation"},
+        )
+        self._state.events.append(event)
         return deepcopy(customer)
 
     def create_subscription(
@@ -51,49 +93,74 @@ class EnvironmentService:
         *,
         customer_id: str,
         plan: str,
-        status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
+        status: SubscriptionStatus | str = SubscriptionStatus.ACTIVE,
     ) -> Subscription:
         if customer_id not in self._state.customers:
             raise ValueError(f"Unknown customer: {customer_id}")
 
+        normalized_status = _normalize_enum(status, SubscriptionStatus, "subscription status")
         subscription = Subscription(
-            id=f"sub_{uuid4().hex[:8]}",
+            id=self._id_provider.generate("sub_"),
             customer_id=customer_id,
-            status=status,
+            status=normalized_status,
             plan=plan,
         )
 
         self._state.subscriptions[subscription.id] = subscription
+        event = EnvironmentEvent(
+            id=self._id_provider.generate("evt_"),
+            event_type=EventType.SUBSCRIPTION_CREATED,
+            timestamp=self._clock.now(),
+            target=subscription.id,
+            field="subscription",
+            old_value=None,
+            new_value={"customer_id": customer_id, "plan": plan, "status": normalized_status.value},
+            metadata={"source": "creation"},
+        )
+        self._state.events.append(event)
         return deepcopy(subscription)
 
     def create_billing_account(
         self,
         *,
         subscription_id: str,
-        status: BillingStatus = BillingStatus.ACTIVE,
+        status: BillingStatus | str = BillingStatus.ACTIVE,
     ) -> BillingAccount:
         if subscription_id not in self._state.subscriptions:
             raise ValueError(f"Unknown subscription: {subscription_id}")
 
+        normalized_status = _normalize_enum(status, BillingStatus, "billing status")
         billing = BillingAccount(
-            id=f"bill_{uuid4().hex[:8]}",
+            id=self._id_provider.generate("bill_"),
             subscription_id=subscription_id,
-            status=status,
+            status=normalized_status,
         )
 
         self._state.billing_accounts[billing.id] = billing
+        event = EnvironmentEvent(
+            id=self._id_provider.generate("evt_"),
+            event_type=EventType.BILLING_ACCOUNT_CREATED,
+            timestamp=self._clock.now(),
+            target=billing.id,
+            field="billing_account",
+            old_value=None,
+            new_value={"subscription_id": subscription_id, "status": normalized_status.value},
+            metadata={"source": "creation"},
+        )
+        self._state.events.append(event)
         return deepcopy(billing)
 
     def change_billing_status(
         self,
         *,
         billing_id: str,
-        new_status: BillingStatus,
+        new_status: BillingStatus | str,
         metadata: dict | None = None,
     ) -> EnvironmentEvent:
+        normalized_status = _normalize_enum(new_status, BillingStatus, "billing status")
         return self._change_billing_status(
             billing_id=billing_id,
-            new_status=new_status,
+            new_status=normalized_status,
             metadata=metadata,
         )
 
@@ -117,9 +184,9 @@ class EnvironmentService:
         self._state.billing_accounts[billing_id] = updated
 
         event = EnvironmentEvent(
-            id=event_id or f"evt_{uuid4().hex[:8]}",
+            id=event_id or self._id_provider.generate("evt_"),
             event_type=EventType.STATE_CHANGE,
-            timestamp=timestamp or utc_now(),
+            timestamp=timestamp or self._clock.now(),
             target=billing_id,
             field="status",
             old_value=old_status.value,
@@ -159,9 +226,9 @@ class EnvironmentService:
             status=SubscriptionStatus.CANCELLED,
         )
         event = EnvironmentEvent(
-            id=f"evt_{uuid4().hex[:8]}",
+            id=self._id_provider.generate("evt_"),
             event_type=EventType.STATE_CHANGE,
-            timestamp=utc_now(),
+            timestamp=self._clock.now(),
             target=subscription_id,
             field="status",
             old_value=subscription.status.value,
@@ -196,9 +263,9 @@ class EnvironmentService:
             status=SubscriptionStatus.CANCELLED,
         )
         event = EnvironmentEvent(
-            id=f"evt_{uuid4().hex[:8]}",
+            id=self._id_provider.generate("evt_"),
             event_type=EventType.STATE_CHANGE,
-            timestamp=utc_now(),
+            timestamp=self._clock.now(),
             target=subscription_id,
             field="status",
             old_value=subscription.status.value,
@@ -267,8 +334,8 @@ class EnvironmentService:
         value: dict[str, Any],
     ) -> Observation:
         return Observation(
-            observation_id=f"obs_{uuid4().hex[:8]}",
-            timestamp=utc_now(),
+            observation_id=self._id_provider.generate("obs_"),
+            timestamp=self._clock.now(),
             source="environment",
             entity_type=entity_type,
             entity_id=entity_id,
@@ -285,9 +352,12 @@ class EnvironmentService:
         cls,
         snapshot: EnvironmentState,
         mutations: Iterable[EnvironmentMutation],
+        *,
+        id_provider: IdProvider | None = None,
+        clock: Clock | None = None,
     ) -> "EnvironmentService":
         """Replay mutations from a snapshot with deterministic replay artifacts."""
-        service = cls(snapshot)
+        service = cls(snapshot, id_provider=id_provider, clock=clock)
         for index, mutation in enumerate(mutations):
             service._apply_mutation(mutation, index=index)
         return service
@@ -298,31 +368,45 @@ class EnvironmentService:
 
         if operation == "create_customer":
             return self._create_customer_with_id(
-                entity_id=parameters.pop("customer_id", f"cust_replay_{index:08d}"),
-                **parameters,
+                entity_id=parameters.pop("customer_id", self._id_provider.generate("cust_replay_")),
+                name=parameters.pop("name"),
+                email=parameters.pop("email"),
             )
         if operation == "create_subscription":
             return self._create_subscription_with_id(
-                entity_id=parameters.pop("subscription_id", f"sub_replay_{index:08d}"),
-                **parameters,
+                entity_id=parameters.pop("subscription_id", self._id_provider.generate("sub_replay_")),
+                customer_id=parameters.pop("customer_id"),
+                plan=parameters.pop("plan"),
+                status=parameters.pop("status", SubscriptionStatus.ACTIVE),
             )
         if operation == "create_billing_account":
             return self._create_billing_with_id(
-                entity_id=parameters.pop("billing_id", f"bill_replay_{index:08d}"),
-                **parameters,
+                entity_id=parameters.pop("billing_id", self._id_provider.generate("bill_replay_")),
+                subscription_id=parameters.pop("subscription_id"),
+                status=parameters.pop("status", BillingStatus.ACTIVE),
             )
         if operation == "change_billing_status":
             return self._change_billing_status(
                 **parameters,
-                event_id=f"evt_replay_{index:08d}",
-                timestamp=datetime(2000, 1, 1, tzinfo=timezone.utc)
-                + timedelta(seconds=index),
+                event_id=self._id_provider.generate("evt_replay_"),
+                timestamp=self._clock.now(),
             )
         raise ValueError(f"Unknown mutation operation: {operation}")
 
     def _create_customer_with_id(self, *, entity_id: str, name: str, email: str) -> Customer:
         customer = Customer(id=entity_id, name=name, email=email)
         self._state.customers[customer.id] = customer
+        event = EnvironmentEvent(
+            id=self._id_provider.generate("evt_"),
+            event_type=EventType.CUSTOMER_CREATED,
+            timestamp=self._clock.now(),
+            target=customer.id,
+            field="customer",
+            old_value=None,
+            new_value={"name": name, "email": email},
+            metadata={"source": "replay"},
+        )
+        self._state.events.append(event)
         return deepcopy(customer)
 
     def _create_subscription_with_id(
@@ -342,6 +426,17 @@ class EnvironmentService:
             plan=plan,
         )
         self._state.subscriptions[subscription.id] = subscription
+        event = EnvironmentEvent(
+            id=self._id_provider.generate("evt_"),
+            event_type=EventType.SUBSCRIPTION_CREATED,
+            timestamp=self._clock.now(),
+            target=subscription.id,
+            field="subscription",
+            old_value=None,
+            new_value={"customer_id": customer_id, "plan": plan, "status": status.value},
+            metadata={"source": "replay"},
+        )
+        self._state.events.append(event)
         return deepcopy(subscription)
 
     def _create_billing_with_id(
@@ -359,4 +454,15 @@ class EnvironmentService:
             status=status,
         )
         self._state.billing_accounts[billing.id] = billing
+        event = EnvironmentEvent(
+            id=self._id_provider.generate("evt_"),
+            event_type=EventType.BILLING_ACCOUNT_CREATED,
+            timestamp=self._clock.now(),
+            target=billing.id,
+            field="billing_account",
+            old_value=None,
+            new_value={"subscription_id": subscription_id, "status": status.value},
+            metadata={"source": "replay"},
+        )
+        self._state.events.append(event)
         return deepcopy(billing)

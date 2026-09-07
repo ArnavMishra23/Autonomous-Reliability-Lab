@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
+from packages.environment.models import BillingStatus, SubscriptionStatus
 from packages.environment.service import EnvironmentService
 
-from .models import ToolDefinition
+from .models import ToolDefinition, ToolErrorCode, ToolError, UnknownCustomerError, UnknownSubscriptionError, UnknownBillingAccountError, SubscriptionAlreadyCancelledError, BillingAccountAlreadyCancelledError, NoBillingAccountForSubscriptionError, InvalidCancellationStateError
 from .registry import ToolRegistry
 
 
@@ -18,7 +19,7 @@ def build_tool_registry(environment: EnvironmentService) -> ToolRegistry:
             input_schema=_schema("customer_id"),
             read_only=True,
         ),
-        lambda arguments: asdict(environment.get_customer(arguments["customer_id"])),
+        lambda arguments: _get_customer(environment, arguments["customer_id"]),
     )
     registry.register(
         ToolDefinition(
@@ -27,9 +28,7 @@ def build_tool_registry(environment: EnvironmentService) -> ToolRegistry:
             input_schema=_schema("subscription_id"),
             read_only=True,
         ),
-        lambda arguments: asdict(
-            environment.get_subscription(arguments["subscription_id"])
-        ),
+        lambda arguments: _get_subscription(environment, arguments["subscription_id"]),
     )
     registry.register(
         ToolDefinition(
@@ -77,8 +76,25 @@ def _schema(argument_name: str) -> dict[str, Any]:
     }
 
 
+def _get_customer(environment: EnvironmentService, customer_id: str) -> dict[str, Any]:
+    try:
+        return asdict(environment.get_customer(customer_id))
+    except ValueError as exc:
+        raise UnknownCustomerError(customer_id) from exc
+
+
+def _get_subscription(environment: EnvironmentService, subscription_id: str) -> dict[str, Any]:
+    try:
+        return asdict(environment.get_subscription(subscription_id))
+    except ValueError as exc:
+        raise UnknownSubscriptionError(subscription_id) from exc
+
+
 def _billing_output(environment: EnvironmentService, billing_id: str) -> dict[str, Any]:
-    billing = environment.get_billing(billing_id)
+    try:
+        billing = environment.get_billing(billing_id)
+    except ValueError as exc:
+        raise UnknownBillingAccountError(billing_id) from exc
     return {
         "id": billing.id,
         "subscription_id": billing.subscription_id,
@@ -90,7 +106,10 @@ def _cancel_subscription(
     environment: EnvironmentService,
     subscription_id: str,
 ) -> dict[str, Any]:
-    environment.get_subscription(subscription_id)
+    try:
+        environment.get_subscription(subscription_id)
+    except ValueError as exc:
+        raise UnknownSubscriptionError(subscription_id) from exc
     billing = next(
         (
             account
@@ -100,9 +119,9 @@ def _cancel_subscription(
         None,
     )
     if billing is None:
-        raise ValueError(f"No billing account for subscription: {subscription_id}")
-    if billing.status.value == "cancelled":
-        raise ValueError(f"Billing account is already cancelled: {billing.id}")
+        raise NoBillingAccountForSubscriptionError(subscription_id)
+    if billing.status == BillingStatus.CANCELLED:
+        raise BillingAccountAlreadyCancelledError(billing.id)
 
     event = environment.cancel_subscription(subscription_id=subscription_id)
     return {
@@ -124,7 +143,19 @@ def _reconcile_subscription(
     environment: EnvironmentService,
     subscription_id: str,
 ) -> dict[str, Any]:
-    event = environment.reconcile_subscription_state(subscription_id=subscription_id)
+    try:
+        event = environment.reconcile_subscription_state(subscription_id=subscription_id)
+    except ValueError as exc:
+        error_msg = str(exc)
+        if "Unknown subscription" in error_msg:
+            raise UnknownSubscriptionError(subscription_id) from exc
+        if "already cancelled" in error_msg:
+            raise SubscriptionAlreadyCancelledError(subscription_id) from exc
+        if "No billing account" in error_msg:
+            raise NoBillingAccountForSubscriptionError(subscription_id) from exc
+        if "not cancelled" in error_msg:
+            raise InvalidCancellationStateError("Billing account is not cancelled") from exc
+        raise
     return {
         "subscription": asdict(environment.get_subscription(subscription_id)),
         "event": {
