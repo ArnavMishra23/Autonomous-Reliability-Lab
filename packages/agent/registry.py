@@ -48,6 +48,9 @@ class ToolRegistry:
     def trace(self) -> ToolTrace:
         return self._trace.snapshot()
 
+    def reset_trace(self) -> None:
+        self._trace = ToolTrace()
+
     def execute(self, tool_name: str, arguments: Mapping[str, Any]) -> ToolResult:
         call = ToolCall(
             call_id=f"call_{uuid4().hex[:8]}",

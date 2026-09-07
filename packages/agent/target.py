@@ -185,6 +185,7 @@ class TargetAgent:
         *,
         step_hook: Callable[[int], None] | None,
     ) -> AgentRun:
+        self._tools.reset_trace()
         run = AgentRun(
             run_id=f"run_{uuid4().hex[:8]}",
             task_id=task.task_id,

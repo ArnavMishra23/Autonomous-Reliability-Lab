@@ -23,3 +23,6 @@ class TargetAgentToolInterface:
     @property
     def trace(self) -> ToolTrace:
         return self._registry.trace
+
+    def reset_trace(self) -> None:
+        self._registry.reset_trace()
