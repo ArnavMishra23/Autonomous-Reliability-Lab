@@ -1,4 +1,5 @@
 from .engine import DiscoveryEngine
+from .guided import FailureGuidedSearchStrategy, SearchDecision, candidate_distance
 from .generator import ScenarioGenerator
 from .models import (
     DiscoveryResult,
@@ -20,5 +21,8 @@ __all__ = [
     "ScenarioGenerator",
     "ScenarioParameter",
     "ScenarioSpace",
+    "FailureGuidedSearchStrategy",
+    "SearchDecision",
+    "candidate_distance",
     "SearchStrategy",
 ]

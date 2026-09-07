@@ -124,6 +124,7 @@ class DiscoveryResult:
     unique_failure_count: int
     failure_ids: tuple[str, ...]
     results: tuple[Mapping[str, Any], ...] = ()
+    search_decisions: tuple[Mapping[str, Any], ...] = ()
     started_at: datetime | None = None
     finished_at: datetime | None = None
     error: str | None = None
@@ -137,6 +138,7 @@ class DiscoveryResult:
             "unique_failure_count": self.unique_failure_count,
             "failure_ids": list(self.failure_ids),
             "results": [_json_value(result) for result in self.results],
+            "search_decisions": [_json_value(decision) for decision in self.search_decisions],
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "error": self.error,

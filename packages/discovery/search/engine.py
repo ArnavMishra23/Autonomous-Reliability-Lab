@@ -50,13 +50,18 @@ class DiscoveryEngine:
         verifier = DeterministicVerifier()
         status = DiscoveryStatus.COMPLETED
         error: str | None = None
+        decisions: list[dict[str, object]] = []
 
         try:
             while state.scenarios_evaluated < max_scenarios:
                 candidate = strategy.choose_next(
                     candidates,
                     state.evaluated_candidates,
+                    state.results,
                 )
+                decision = getattr(strategy, "last_decision", None)
+                if decision is not None:
+                    decisions.append(decision.to_dict())
                 if candidate is None:
                     status = (
                         DiscoveryStatus.NO_CANDIDATES
@@ -93,6 +98,7 @@ class DiscoveryEngine:
             unique_failure_count=len({failure.failure_id for failure in state.failure_records}),
             failure_ids=tuple(failure.failure_id for failure in state.failure_records),
             results=state.results,
+            search_decisions=tuple(decisions),
             started_at=state.started_at,
             finished_at=state.finished_at,
             error=error,

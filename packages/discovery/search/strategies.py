@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from typing import Iterable, Protocol
+from typing import Any, Iterable, Mapping, Protocol
 
 from .models import ScenarioCandidate
 
@@ -11,6 +11,7 @@ class SearchStrategy(Protocol):
         self,
         candidates: Iterable[ScenarioCandidate],
         evaluated: frozenset[str] = frozenset(),
+        history: Iterable[Mapping[str, Any]] = (),
     ) -> ScenarioCandidate | None:
         """Choose one unseen candidate or return None when exhausted."""
 
@@ -26,7 +27,9 @@ class RandomSearchStrategy:
         self,
         candidates: Iterable[ScenarioCandidate],
         evaluated: frozenset[str] = frozenset(),
+        history: Iterable[Mapping[str, Any]] = (),
     ) -> ScenarioCandidate | None:
+        del history
         if self._remaining is None:
             self._remaining = [
                 candidate
