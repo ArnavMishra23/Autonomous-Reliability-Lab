@@ -29,20 +29,20 @@ class InterventionToolInterface:
     def reset_trace(self) -> None:
         self._base.reset_trace()
 
-    def execute(self, tool_name: str, arguments: Mapping[str, Any]) -> ToolResult:
+    def execute(self, tool_name: str, arguments: Mapping[str, Any], step: int = 0) -> ToolResult:
         if (
             self._intervention.intervention_type == InterventionType.REQUIRED_OBSERVATION
             and tool_name == self._intervention.target
         ):
             observation_tool = self._intervention.value
             observation_arguments = self._observation_arguments(arguments)
-            observation_result = self._base.execute(observation_tool, observation_arguments)
+            observation_result = self._base.execute(observation_tool, observation_arguments, step=step)
             if not observation_result.success:
                 return observation_result
             # Return the fresh evidence as this turn's result. The agent/provider
             # gets another decision cycle and the original action is not forced.
             return observation_result
-        return self._base.execute(tool_name, arguments)
+        return self._base.execute(tool_name, arguments, step=step)
 
     def _observation_arguments(self, action_arguments: Mapping[str, Any]) -> dict[str, Any]:
         billing_id = self._intervention.metadata.get("billing_id")

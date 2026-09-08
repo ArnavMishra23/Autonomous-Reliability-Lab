@@ -3,8 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Mapping
-from uuid import uuid4
 
+from packages.environment.models import IdProvider, DefaultIdProvider
 from packages.discovery.failure.models import FailureRecord, VerificationResult
 from packages.discovery.scenario.models import ScenarioRun
 
@@ -19,6 +19,9 @@ from .models import (
 
 class CausalAnalyzer:
     """Builds an evidence-backed causal representation without hidden reasoning."""
+
+    def __init__(self, id_provider: IdProvider | None = None) -> None:
+        self._id_provider = id_provider or DefaultIdProvider()
 
     def analyze(
         self,
@@ -103,7 +106,7 @@ class CausalAnalyzer:
             "; ".join(verification.errors) if verification and verification.errors else None
         )
         return CausalAnalysis(
-            analysis_id=f"analysis_{uuid4().hex[:8]}",
+            analysis_id=self._id_provider.generate("analysis_"),
             scenario_id=scenario_run.scenario_id,
             run_id=scenario_run.run_id,
             primary_failure=primary_failure,
@@ -148,8 +151,8 @@ class CausalAnalyzer:
                 entry = trace[tool_call_index]
                 call = entry["call"]
                 result = entry["result"]
-                call_step = call.get("metadata", {}).get("agent_step") if isinstance(call.get("metadata"), Mapping) else None
-                if call_step is None:
+                call_step = call.get("step", 0)
+                if call_step == 0:
                     call_step = tool_call_index + 1
                 if call_step == step:
                     timeline.append({"sequence": len(timeline), "kind": "tool_call", "value": call})

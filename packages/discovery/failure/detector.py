@@ -4,6 +4,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 from packages.discovery.scenario.models import ScenarioRun, ScenarioRunStatus
+from packages.environment.models import IdProvider, DefaultIdProvider
 
 from .models import FailureRecord, ScenarioOutcome, VerificationResult
 from .verifier import DeterministicVerifier
@@ -12,8 +13,13 @@ from .verifier import DeterministicVerifier
 class FailureDetector:
     """Classifies verification evidence using deterministic priority rules."""
 
-    def __init__(self, verifier: DeterministicVerifier | None = None) -> None:
+    def __init__(
+        self,
+        verifier: DeterministicVerifier | None = None,
+        id_provider: IdProvider | None = None,
+    ) -> None:
         self._verifier = verifier or DeterministicVerifier()
+        self._id_provider = id_provider or DefaultIdProvider()
 
     @property
     def verifier(self) -> DeterministicVerifier:
@@ -54,7 +60,7 @@ class FailureDetector:
         events = scenario_run.final_environment.get("events", ())
         first_event_id = events[0].get("id") if events else None
         return FailureRecord(
-            failure_id=f"failure_{uuid4().hex[:8]}",
+            failure_id=self._id_provider.generate("failure_"),
             scenario_id=scenario_run.scenario_id,
             run_id=scenario_run.run_id,
             outcome=outcome,

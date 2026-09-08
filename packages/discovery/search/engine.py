@@ -7,6 +7,7 @@ from uuid import uuid4
 from packages.agent.target import TargetAgent
 from packages.discovery.failure.detector import FailureDetector
 from packages.discovery.scenario.runner import ScenarioRunner
+from packages.environment.models import Clock, DefaultClock
 from packages.environment.service import EnvironmentService
 
 from .generator import ScenarioGenerator
@@ -21,7 +22,7 @@ from .strategies import SearchStrategy
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return DefaultClock().now()
 
 
 class DiscoveryEngine:
@@ -75,7 +76,7 @@ class DiscoveryEngine:
                     scenario = generator.generate(candidate)
                     scenario_run = runner.run(scenario, environment, agent)
                     failure = failure_detector.detect(scenario_run)
-                    state.record(candidate, scenario_run, failure_detector._verifier.verify(scenario_run), failure)
+                    state.record(candidate, scenario_run, failure_detector.verify(scenario_run), failure)
                 except Exception as exc:
                     status = DiscoveryStatus.FAILED
                     error = f"Unrecoverable discovery error for {candidate.candidate_id}: {exc}"

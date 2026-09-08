@@ -103,6 +103,7 @@ class ToolCall:
     tool_name: str
     arguments: Mapping[str, Any]
     timestamp: datetime
+    step: int = 0
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -148,6 +149,7 @@ class ToolTrace:
                         tool_name=entry.call.tool_name,
                         arguments=entry.call.arguments,
                         timestamp=entry.call.timestamp,
+                        step=entry.call.step,
                     ),
                     result=ToolResult(
                         call_id=entry.result.call_id,

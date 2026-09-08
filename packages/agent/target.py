@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from .models import ToolDefinition, ToolResult, ToolTrace, generate_id
+from .models import ToolDefinition, ToolResult, ToolTrace, ToolTraceEntry, ToolCall, generate_id
 from packages.environment.models import Clock, DefaultClock
 from .protocol import TargetAgentToolInterface
 
@@ -264,6 +264,7 @@ class TargetAgent:
             started_at=self._clock.now(),
         )
         previous_results: list[ToolResult] = []
+        run_trace_entries: list[ToolTraceEntry] = []
         system_instructions = "Use only the available tools. Do not assume unobserved state."
         try:
             for step in range(1, self._max_steps + 1):
@@ -276,43 +277,57 @@ class TargetAgent:
                     previous_results=tuple(previous_results),
                 )
                 if not isinstance(response, ModelResponse):
-                    return self._fail(run, "Malformed model response")
+                    return self._fail(run, "Malformed model response", run_trace_entries)
                 if response.completed:
                     if response.tool_calls:
                         return self._fail(
                             run,
                             "Malformed model response: completed response requested tools",
+                            run_trace_entries,
                         )
                     run.status = AgentRunStatus.SUCCEEDED
                     run.final_result = response.content
-                    return self._finish(run, active_tools)
+                    return self._finish(run, run_trace_entries)
                 if len(response.tool_calls) != 1:
                     return self._fail(
                         run,
                         "Malformed model response: expected exactly one tool call",
+                        run_trace_entries,
                     )
 
                 request = response.tool_calls[0]
                 if not isinstance(request, ToolRequest):
-                    return self._fail(run, "Malformed model response: invalid tool request")
-                result = active_tools.execute(request.tool_name, request.arguments)
+                    return self._fail(run, "Malformed model response: invalid tool request", run_trace_entries)
+                executed_tool_name = request.tool_name
+                result = active_tools.execute(request.tool_name, request.arguments, step=step)
+                # Use the actual executed tool name from the result (may differ due to interventions)
+                executed_tool_name = result.tool_name
                 previous_results.append(result)
-                run.trace = active_tools.trace
+                run_trace_entries.append(ToolTraceEntry(call=ToolCall(
+                    call_id=generate_id("call_"),
+                    tool_name=executed_tool_name,
+                    arguments=request.arguments,
+                    timestamp=self._clock.now(),
+                    step=step,
+                ), result=result))
                 if not result.success:
-                    return self._fail(run, result.error or "Tool execution failed")
-            return self._fail(run, f"Maximum agent steps exceeded: {self._max_steps}")
+                    return self._fail(run, result.error or "Tool execution failed", run_trace_entries)
+            return self._fail(run, f"Maximum agent steps exceeded: {self._max_steps}", run_trace_entries)
         except Exception as exc:
-            return self._fail(run, f"Model execution failed: {exc}")
+            return self._fail(run, f"Model execution failed: {exc}", run_trace_entries)
 
-    def _finish(self, run: AgentRun, active_tools: TargetAgentToolInterface) -> AgentRun:
+    def _finish(self, run: AgentRun, trace_entries: list[ToolTraceEntry]) -> AgentRun:
         run.finished_at = self._clock.now()
-        run.trace = active_tools.trace
+        run.trace = ToolTrace(entries=trace_entries)
         return run
 
-    def _fail(self, run: AgentRun, error: str) -> AgentRun:
+    def _fail(self, run: AgentRun, error: str, trace_entries: list[ToolTraceEntry] | None = None) -> AgentRun:
         run.status = AgentRunStatus.FAILED
         run.error = error
-        return self._finish(run, self._default_tools)
+        if trace_entries is not None:
+            run.trace = ToolTrace(entries=trace_entries)
+        run.finished_at = self._clock.now()
+        return run
 
 
 def _json_value(value: Any) -> Any:

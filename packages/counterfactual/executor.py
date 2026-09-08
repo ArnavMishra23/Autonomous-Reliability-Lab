@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
+from packages.environment.models import IdProvider, DefaultIdProvider
 from packages.agent.target import AgentRun, AgentTask, TargetAgent
 from packages.discovery.failure import DeterministicVerifier, FailureDetector
 from packages.discovery.scenario import Scenario, ScenarioRunner
@@ -25,10 +24,12 @@ class CounterfactualExecutor:
         runner: ScenarioRunner | None = None,
         verifier: DeterministicVerifier | None = None,
         detector: FailureDetector | None = None,
+        id_provider: IdProvider | None = None,
     ) -> None:
         self._runner = runner or ScenarioRunner()
         self._verifier = verifier or DeterministicVerifier()
         self._detector = detector or FailureDetector(self._verifier)
+        self._id_provider = id_provider or DefaultIdProvider()
 
     def execute(
         self,
@@ -46,6 +47,7 @@ class CounterfactualExecutor:
         status = CounterfactualStatus.EXECUTION_ERROR
         metadata: dict[str, object] = {}
         try:
+            # Ensure we start from a clean baseline by restoring the supplied starting state
             environment.restore(starting_state)
             scenario_run = self._runner.run(
                 scenario,
@@ -73,6 +75,7 @@ class CounterfactualExecutor:
         except Exception as exc:
             metadata = {"error": str(exc)}
         try:
+            # Always restore to the supplied starting state after execution
             environment.restore(starting_state)
             restored = True
         except Exception as exc:
@@ -80,7 +83,7 @@ class CounterfactualExecutor:
             status = CounterfactualStatus.EXECUTION_ERROR
             metadata = {"error": f"Environment restore failed: {exc}"}
         return CounterfactualResult(
-            result_id=f"result_{uuid4().hex[:8]}",
+            result_id=self._id_provider.generate("result_"),
             candidate_id=candidate.candidate_id,
             original_run_id=original_run_id,
             counterfactual_run_id=scenario_run.run_id if scenario_run else None,

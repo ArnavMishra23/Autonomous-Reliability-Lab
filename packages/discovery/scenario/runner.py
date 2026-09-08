@@ -7,7 +7,7 @@ from typing import Any, Callable, Mapping
 from uuid import uuid4
 
 from packages.agent.target import AgentRunStatus, TargetAgent
-from packages.environment.models import EnvironmentEvent
+from packages.environment.models import Clock, DefaultClock, EnvironmentEvent
 from packages.environment.service import EnvironmentService
 
 from .models import (
@@ -21,7 +21,7 @@ from .scheduler import ScenarioScheduler
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return DefaultClock().now()
 
 
 class ScenarioRunner:

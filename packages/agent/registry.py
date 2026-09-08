@@ -57,12 +57,13 @@ class ToolRegistry:
     def reset_trace(self) -> None:
         self._trace = ToolTrace()
 
-    def execute(self, tool_name: str, arguments: Mapping[str, Any]) -> ToolResult:
+    def execute(self, tool_name: str, arguments: Mapping[str, Any], step: int = 0) -> ToolResult:
         call = ToolCall(
             call_id=self._id_provider.generate("call_"),
             tool_name=tool_name,
             arguments=arguments if isinstance(arguments, Mapping) else {},
             timestamp=self._clock.now(),
+            step=step,
         )
         try:
             definition, implementation = self._tools[tool_name]

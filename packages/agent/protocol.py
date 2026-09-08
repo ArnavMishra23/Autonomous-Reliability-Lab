@@ -17,8 +17,8 @@ class TargetAgentToolInterface:
     def available_tools(self) -> tuple[ToolDefinition, ...]:
         return self._registry.list_tools()
 
-    def execute(self, tool_name: str, arguments: Mapping[str, Any]) -> ToolResult:
-        return self._registry.execute(tool_name, arguments)
+    def execute(self, tool_name: str, arguments: Mapping[str, Any], step: int = 0) -> ToolResult:
+        return self._registry.execute(tool_name, arguments, step=step)
 
     @property
     def trace(self) -> ToolTrace:
