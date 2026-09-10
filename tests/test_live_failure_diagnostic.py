@@ -153,45 +153,42 @@ def test_message_history_after_cancellation():
     
     messages = provider._build_messages(system_instructions, task, tools, previous_trace)
     
-    print("\n=== MESSAGE HISTORY BEFORE STEP 6 (reconcile_subscription_state) ===")
-    for i, msg in enumerate(messages):
-        print(f"\nMessage {i}:")
-        print(f"  role: {msg.get('role')}")
-        if msg.get('role') == 'tool':
-            print(f"  tool_call_id: {msg.get('tool_call_id')}")
-            print(f"  name: {msg.get('name')}")
-            content = msg.get('content', '')
-            print(f"  content: {content[:300]}...")
-        elif msg.get('role') == 'assistant':
-            print(f"  content: {msg.get('content')}")
-            tool_calls = msg.get('tool_calls', [])
-            for tc in tool_calls:
-                print(f"  tool_call: id={tc['id']}, name={tc['function']['name']}, args={tc['function']['arguments']}")
-        else:
-            print(f"  content: {msg.get('content')[:100]}...")
-    
     # Verify the message structure
     assistant_messages = [m for m in messages if m.get('role') == 'assistant']
     tool_messages = [m for m in messages if m.get('role') == 'tool']
     
-    print(f"\n=== SUMMARY ===")
-    print(f"Total messages: {len(messages)}")
-    print(f"Assistant messages (with tool_calls): {len(assistant_messages)}")
-    print(f"Tool messages: {len(tool_messages)}")
+    # Should have system + user + 5 assistant + 5 tool = 12 messages
+    assert len(messages) == 12
+    assert len(assistant_messages) == 5
+    assert len(tool_messages) == 5
+    
+    # Verify message roles alternate correctly: system, user, assistant, tool, assistant, tool, ...
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    assert messages[2]["role"] == "assistant"
+    assert messages[3]["role"] == "tool"
     
     # Check the cancel_subscription result specifically
     cancel_result = next((m for m in tool_messages if m.get('name') == 'cancel_subscription'), None)
-    if cancel_result:
-        print(f"\n=== CANCEL_SUBSCRIPTION RESULT (what model saw) ===")
-        print(cancel_result.get('content', '')[:500])
+    assert cancel_result is not None
+    assert "status" in cancel_result.get('content', '')
+    assert "cancelled" in cancel_result.get('content', '')
     
     # Check the second get_billing_status result
     billing_results = [m for m in tool_messages if m.get('name') == 'get_billing_status']
-    if len(billing_results) >= 2:
-        print(f"\n=== SECOND GET_BILLING_STATUS RESULT (after cancellation) ===")
-        print(billing_results[1].get('content', '')[:500])
+    assert len(billing_results) == 2
+    # Second billing result should show active status
+    assert "active" in billing_results[1].get('content', '')
     
-    return messages
+    # Verify each assistant message has tool_calls
+    for amsg in assistant_messages:
+        assert "tool_calls" in amsg
+        assert len(amsg["tool_calls"]) == 1
+        tc = amsg["tool_calls"][0]
+        assert "id" in tc
+        assert "function" in tc
+        assert "name" in tc["function"]
+        assert "arguments" in tc["function"]
 
 
 def test_mock_provider_behavior():
@@ -236,12 +233,12 @@ def test_mock_provider_behavior():
         previous_trace=trace,
     )
     
-    print(f"\n=== MOCK PROVIDER RESPONSE ===")
-    print(f"Content: {response.content}")
-    print(f"Completed: {response.completed}")
-    print(f"Tool calls: {[(tc.tool_name, tc.arguments) for tc in response.tool_calls]}")
-    
-    return response
+    # MockProvider should complete when it sees billing is active after cancellation
+    # (because reconciliation is not needed when billing is active)
+    assert isinstance(response, ModelResponse)
+    assert response.completed is True
+    assert response.tool_calls == ()
+    assert "complete" in response.content.lower() or "workflow" in response.content.lower()
 
 
 def test_reconcile_failure():
@@ -258,23 +255,22 @@ def test_reconcile_failure():
     # Cancel the subscription (but NOT the billing)
     environment.cancel_subscription(subscription_id=subscription.id)
     
-    print(f"\n=== STATE AFTER CANCEL_SUBSCRIPTION ===")
-    print(f"Subscription status: {environment.get_subscription(subscription.id).status}")
-    print(f"Billing status: {environment.get_billing(billing.id).status}")
+    # Verify state after cancellation
+    assert environment.get_subscription(subscription.id).status.value == "cancelled"
+    assert environment.get_billing(billing.id).status.value == "active"
     
-    # Now try to reconcile
+    # Now try to reconcile - should fail because subscription is already cancelled
     interface = TargetAgentToolInterface(build_tool_registry(environment))
     
     result = interface.execute("reconcile_subscription_state", {"subscription_id": subscription.id}, step=6)
     
-    print(f"\n=== RECONCILE_SUBSCRIPTION_STATE RESULT ===")
-    print(f"Tool: {result.tool_name}")
-    print(f"Success: {result.success}")
-    print(f"Error: {result.error}")
-    print(f"Error code: {result.error_code}")
-    print(f"Output: {result.output}")
-    
-    return result
+    assert result.tool_name == "reconcile_subscription_state"
+    assert result.success is False
+    assert result.error is not None
+    assert "already cancelled" in result.error.lower()
+    assert result.error_code is not None
+    assert result.error_code.value == "subscription_already_cancelled"
+    assert result.output is None
 
 
 if __name__ == "__main__":
