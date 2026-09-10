@@ -48,12 +48,12 @@ class ExceptionProvider:
 class RecordingProvider:
     def __init__(self, customer_id: str) -> None:
         self.customer_id = customer_id
-        self.previous_results: list[tuple[object, ...]] = []
+        self.previous_trace: list[tuple[object, ...]] = []
 
     def complete(self, **kwargs: object) -> ModelResponse:
-        results = kwargs["previous_results"]
-        self.previous_results.append(tuple(results))
-        if len(self.previous_results) == 1:
+        trace = kwargs["previous_trace"]
+        self.previous_trace.append(tuple(trace))
+        if len(self.previous_trace) == 1:
             return ModelResponse(
                 content="Read customer.",
                 tool_calls=(
@@ -108,7 +108,7 @@ def test_mock_provider_drives_expected_sequence() -> None:
             system_instructions="",
             task=task,
             available_tools=tools,
-            previous_results=(),
+            previous_trace=(),
         )
     ]
 
@@ -150,9 +150,9 @@ def test_tool_results_are_fed_back_into_provider() -> None:
     )
 
     assert run.status == AgentRunStatus.SUCCEEDED
-    assert len(provider.previous_results) == 2
-    assert provider.previous_results[0] == ()
-    assert provider.previous_results[1][0].success is True
+    assert len(provider.previous_trace) == 2
+    assert provider.previous_trace[0] == ()
+    assert provider.previous_trace[1][0].result.success is True
 
 
 def test_unknown_requested_tool_produces_failure() -> None:

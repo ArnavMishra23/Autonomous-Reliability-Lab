@@ -15,7 +15,10 @@ def build_tool_registry(environment: EnvironmentService) -> ToolRegistry:
     registry.register(
         ToolDefinition(
             name="get_customer",
-            description="Read a customer from the authoritative environment.",
+            description="Read a customer from the authoritative environment. "
+            "Returns the customer id, name, and email, along with "
+            "authoritative linked subscription_id and billing_id. "
+            "Subsequent tools should use these returned IDs exactly.",
             input_schema=_schema("customer_id"),
             read_only=True,
         ),
@@ -55,7 +58,13 @@ def build_tool_registry(environment: EnvironmentService) -> ToolRegistry:
     registry.register(
         ToolDefinition(
             name="reconcile_subscription_state",
-            description="Reconcile a subscription after authoritative billing cancellation.",
+            description=(
+                "Reconcile a subscription when billing is already cancelled but the "
+                "subscription is still active. "
+                "Preconditions: billing.status == cancelled AND subscription.status != cancelled. "
+                "This synchronizes the subscription to cancelled. "
+                "Do NOT call if the subscription is already cancelled."
+            ),
             input_schema=_schema("subscription_id"),
             read_only=False,
         ),
@@ -78,9 +87,24 @@ def _schema(argument_name: str) -> dict[str, Any]:
 
 def _get_customer(environment: EnvironmentService, customer_id: str) -> dict[str, Any]:
     try:
-        return asdict(environment.get_customer(customer_id))
+        customer = environment.get_customer(customer_id)
     except ValueError as exc:
         raise UnknownCustomerError(customer_id) from exc
+    c = asdict(customer)
+    # Find authoritative linked subscription and billing from environment state
+    subscription_id: str | None = None
+    billing_id: str | None = None
+    for sub in environment._state.subscriptions.values():
+        if sub.customer_id == customer_id:
+            subscription_id = sub.id
+            for bill in environment._state.billing_accounts.values():
+                if bill.subscription_id == sub.id:
+                    billing_id = bill.id
+                    break
+            break
+    c["subscription_id"] = subscription_id
+    c["billing_id"] = billing_id
+    return c
 
 
 def _get_subscription(environment: EnvironmentService, subscription_id: str) -> dict[str, Any]:

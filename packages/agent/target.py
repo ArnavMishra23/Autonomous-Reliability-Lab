@@ -60,7 +60,7 @@ class ModelProvider(Protocol):
         system_instructions: str,
         task: AgentTask,
         available_tools: Sequence[ToolDefinition],
-        previous_results: Sequence[ToolResult],
+        previous_trace: Sequence[ToolTraceEntry],
     ) -> ModelResponse:
         """Return the model's next text and optional tool requests."""
 
@@ -122,7 +122,7 @@ class MockProvider:
         self.customer_id = customer_id
         self.subscription_id = subscription_id
         self.billing_id = billing_id
-        self.calls: list[tuple[str, tuple[ToolResult, ...]]] = []
+        self.calls: list[tuple[str, tuple[ToolTraceEntry, ...]]] = []
 
     def complete(
         self,
@@ -130,11 +130,11 @@ class MockProvider:
         system_instructions: str,
         task: AgentTask,
         available_tools: Sequence[ToolDefinition],
-        previous_results: Sequence[ToolResult],
+        previous_trace: Sequence[ToolTraceEntry],
     ) -> ModelResponse:
         del system_instructions, task, available_tools
-        self.calls.append(("complete", tuple(previous_results)))
-        step = len(previous_results)
+        self.calls.append(("complete", tuple(previous_trace)))
+        step = len(previous_trace)
         requests = (
             ToolRequest("get_customer", {"customer_id": self.customer_id}),
             ToolRequest("get_subscription", {"subscription_id": self.subscription_id}),
@@ -143,19 +143,19 @@ class MockProvider:
         )
         latest_billing_status = next(
             (
-                result.output.get("status")
-                for result in reversed(previous_results)
-                if result.tool_name == "get_billing_status"
-                and result.success
-                and isinstance(result.output, Mapping)
+                entry.result.output.get("status")
+                for entry in reversed(previous_trace)
+                if entry.result.tool_name == "get_billing_status"
+                and entry.result.success
+                and isinstance(entry.result.output, Mapping)
             ),
             None,
         )
         if latest_billing_status == "cancelled":
             reconciled = any(
-                result.tool_name == "reconcile_subscription_state"
-                and result.success
-                for result in previous_results
+                entry.result.tool_name == "reconcile_subscription_state"
+                and entry.result.success
+                for entry in previous_trace
             )
             if not reconciled:
                 return ModelResponse(
@@ -263,7 +263,6 @@ class TargetAgent:
             status=AgentRunStatus.RUNNING,
             started_at=self._clock.now(),
         )
-        previous_results: list[ToolResult] = []
         run_trace_entries: list[ToolTraceEntry] = []
         system_instructions = "Use only the available tools. Do not assume unobserved state."
         try:
@@ -274,7 +273,7 @@ class TargetAgent:
                     system_instructions=system_instructions,
                     task=task,
                     available_tools=active_tools.available_tools,
-                    previous_results=tuple(previous_results),
+                    previous_trace=tuple(run_trace_entries),
                 )
                 if not isinstance(response, ModelResponse):
                     return self._fail(run, "Malformed model response", run_trace_entries)
@@ -302,7 +301,6 @@ class TargetAgent:
                 result = active_tools.execute(request.tool_name, request.arguments, step=step)
                 # Use the actual executed tool name from the result (may differ due to interventions)
                 executed_tool_name = result.tool_name
-                previous_results.append(result)
                 run_trace_entries.append(ToolTraceEntry(call=ToolCall(
                     call_id=generate_id("call_"),
                     tool_name=executed_tool_name,

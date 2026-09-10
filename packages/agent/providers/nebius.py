@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import os
 from typing import Any, Mapping, Sequence
-from unittest.mock import MagicMock, create_autospec
 
+from dotenv import load_dotenv
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessageToolCall
 from openai.types.chat.chat_completion_message_tool_call import Function
@@ -26,7 +26,16 @@ class NebiusNemotronProvider:
         base_url: str | None = None,
         api_key: str | None = None,
         timeout: float = 30.0,
+        dotenv_path: str | None = None,
     ) -> None:
+        # Load .env file from specified path or current working directory at instantiation time.
+        # Priority: constructor arg > environment variable > .env > default
+        # We do NOT use override=True, so environment variables take precedence over .env.
+        if dotenv_path is not None:
+            load_dotenv(dotenv_path=dotenv_path)
+        else:
+            load_dotenv()
+
         self._model = model or os.getenv("NEBIUS_MODEL")
         if not self._model:
             raise ValueError("Model must be provided via constructor or NEBIUS_MODEL environment variable")
@@ -49,9 +58,9 @@ class NebiusNemotronProvider:
         system_instructions: str,
         task: AgentTask,
         available_tools: Sequence[ToolDefinition],
-        previous_results: Sequence[ToolResult],
+        previous_trace: Sequence[ToolTraceEntry],
     ) -> ModelResponse:
-        messages = self._build_messages(system_instructions, task, available_tools, previous_results)
+        messages = self._build_messages(system_instructions, task, available_tools, previous_trace)
         tools = self._convert_tools(available_tools)
 
         try:
@@ -71,14 +80,32 @@ class NebiusNemotronProvider:
         system_instructions: str,
         task: AgentTask,
         available_tools: Sequence[ToolDefinition],
-        previous_results: Sequence[ToolResult],
+        previous_trace: Sequence[ToolTraceEntry],
     ) -> list[dict[str, Any]]:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_instructions},
             {"role": "user", "content": f"Task: {task.goal}\nContext: {task.context}"},
         ]
 
-        for result in previous_results:
+        for entry in previous_trace:
+            call = entry.call
+            result = entry.result
+
+            # Add assistant tool-call message
+            messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id": call.call_id,
+                    "type": "function",
+                    "function": {
+                        "name": call.tool_name,
+                        "arguments": json.dumps(dict(call.arguments)),
+                    },
+                }],
+            })
+
+            # Add tool result message
             if result.success:
                 messages.append({
                     "role": "tool",

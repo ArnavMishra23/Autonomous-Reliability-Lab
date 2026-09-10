@@ -13,6 +13,16 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Bootstrap: add repository root to sys.path so 'packages' imports works.
+# This allows running the script directly from the repository root.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
+
+# Load repository-root .env before reading environment variables.
+load_dotenv(_REPO_ROOT / ".env")
 
 from packages.agent.target import TargetAgent, AgentTask
 from packages.agent.protocol import TargetAgentToolInterface
@@ -38,7 +48,6 @@ def main() -> int:
     print(f"Live TargetAgent smoke test with:")
     print(f"  Base URL: {base_url}")
     print(f"  Model: {model}")
-    print(f"  API Key: {'*' * (len(api_key) - 4)}{api_key[-4:] if len(api_key) > 4 else '****'}")
 
     try:
         # Set up the Customer Operations environment
@@ -101,14 +110,14 @@ def main() -> int:
             print(f"  Billing {bill.id}: {bill.status.value}")
 
         if run.status.value == "succeeded":
-            print("\n✓ Live TargetAgent smoke test PASSED")
+            print("\nLive TargetAgent smoke test PASSED")
             return 0
         else:
-            print(f"\n✗ Live TargetAgent smoke test FAILED: {run.error}")
+            print(f"\nLive TargetAgent smoke test FAILED: {run.error}")
             return 1
 
     except Exception as exc:
-        print(f"\n✗ Live TargetAgent smoke test FAILED: {exc}")
+        print(f"\nLive TargetAgent smoke test FAILED: {exc}")
         import traceback
         traceback.print_exc()
         return 1

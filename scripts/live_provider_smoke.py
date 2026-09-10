@@ -12,6 +12,16 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Bootstrap: add repository root to sys.path so 'packages' imports work.
+# This allows running the script directly from the repository root.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
+
+# Load repository-root .env before reading environment variables.
+load_dotenv(_REPO_ROOT / ".env")
 
 from packages.agent.target import AgentTask
 from packages.agent.providers.nebius import NebiusNemotronProvider
@@ -34,7 +44,6 @@ def main() -> int:
     print(f"Testing NebiusNemotronProvider with:")
     print(f"  Base URL: {base_url}")
     print(f"  Model: {model}")
-    print(f"  API Key: {'*' * (len(api_key) - 4)}{api_key[-4:] if len(api_key) > 4 else '****'}")
 
     try:
         provider = NebiusNemotronProvider(
@@ -65,14 +74,14 @@ def main() -> int:
             print(f"  Tool calls: {[(tc.tool_name, tc.arguments) for tc in response.tool_calls]}")
 
         if response.completed and response.content:
-            print("\n✓ Live provider smoke test PASSED")
+            print("\nLive provider smoke test PASSED")
             return 0
         else:
-            print("\n✗ Live provider smoke test FAILED: Unexpected response")
+            print("\nLive provider smoke test FAILED: Unexpected response")
             return 1
 
     except Exception as exc:
-        print(f"\n✗ Live provider smoke test FAILED: {exc}")
+        print(f"\nLive provider smoke test FAILED: {exc}")
         return 1
 
 
