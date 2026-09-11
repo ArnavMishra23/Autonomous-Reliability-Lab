@@ -15,6 +15,7 @@ from packages.analysis import (
     EvidenceReference,
     FailureHypothesis,
 )
+from packages.analysis.analyzer import _timestamp
 from packages.discovery.failure import DeterministicVerifier, FailureDetector
 from packages.discovery.scenario import (
     Perturbation,

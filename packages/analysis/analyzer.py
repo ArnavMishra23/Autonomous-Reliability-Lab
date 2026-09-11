@@ -350,25 +350,153 @@ class CausalAnalyzer:
     ) -> list[FailureHypothesis]:
         if not realities or not observations or not actions:
             return []
-        supporting = tuple(
-            EvidenceReference(f"hypothesis_{index}", "causal_node", node.node_id, "Observable evidence")
-            for index, node in enumerate((*realities[:1], *observations[:1], *actions[:1], *results[:1]))
-        )
-        verification_failed = (
-            verification is not None
-            and isinstance(verification.value, Mapping)
-            and not verification.value.get("passed", True)
-        )
-        score = sum(
-            (bool(realities), bool(observations), bool(actions), bool(results), verification_failed)
-        ) / 5
-        return [FailureHypothesis(
-            hypothesis_id="hypothesis_stale_observation",
-            statement="The agent acted on state that was no longer current.",
-            confidence=round(score, 3),
-            supporting_evidence=supporting,
-            metadata={"score_is_evidence_coverage_not_probability": True, "failure_id": failure.failure_id if failure else None},
-        )]
+        hypotheses = []
+
+        # Hypothesis 2: Redundant action - repeated successful action after desired state achieved
+        redundant_hypothesis = CausalAnalyzer._detect_redundant_action(actions, results, observations, realities, failure)
+        if redundant_hypothesis:
+            hypotheses.append(redundant_hypothesis)
+
+        # Hypothesis 1: Stale observation (existing) - only if no redundant action detected
+        # Redundant action is a more specific and accurate explanation when the agent had
+        # fresh evidence that the desired state was already achieved before repeating the action.
+        if not any(h.hypothesis_id == "hypothesis_redundant_action" for h in hypotheses):
+            supporting_stale = tuple(
+                EvidenceReference(f"hypothesis_{index}", "causal_node", node.node_id, "Observable evidence")
+                for index, node in enumerate((*realities[:1], *observations[:1], *actions[:1], *results[:1]))
+            )
+            verification_failed = (
+                verification is not None
+                and isinstance(verification.value, Mapping)
+                and not verification.value.get("passed", True)
+            )
+            score_stale = sum(
+                (bool(realities), bool(observations), bool(actions), bool(results), verification_failed)
+            ) / 5
+            hypotheses.append(FailureHypothesis(
+                hypothesis_id="hypothesis_stale_observation",
+                statement="The agent acted on state that was no longer current.",
+                confidence=round(score_stale, 3),
+                supporting_evidence=supporting_stale,
+                metadata={"score_is_evidence_coverage_not_probability": True, "failure_id": failure.failure_id if failure else None},
+            ))
+
+        return hypotheses
+
+    @staticmethod
+    def _detect_redundant_action(
+        actions: list[CausalNode],
+        results: list[CausalNode],
+        observations: list[CausalNode],
+        realities: list[CausalNode],
+        failure: FailureRecord | None,
+    ) -> FailureHypothesis | None:
+        """
+        Detect redundant action pattern:
+        1. First state-changing action succeeds
+        2. The successful action produces an authoritative state transition
+        3. A later observation confirms the desired resulting state is already true
+        4. A later action repeats the same consequential action on the same entity
+        5. The repeated action fails with an error indicating the desired state is already satisfied
+        """
+        # All action nodes in the current implementation are cancel_subscription actions
+        # (see _action_nodes which only creates actions for cancel_subscription)
+        cancel_actions = [a for a in actions]
+        if len(cancel_actions) < 2:
+            return None
+
+        # Sort actions by sequence
+        cancel_actions.sort(key=lambda a: a.metadata.get("sequence", 0))
+
+        # Check each pair of consecutive cancel_subscription actions on the same entity
+        for i in range(len(cancel_actions) - 1):
+            first_action = cancel_actions[i]
+            second_action = cancel_actions[i + 1]
+
+            # Must be on the same entity (subscription)
+            if first_action.entity_id != second_action.entity_id:
+                continue
+
+            entity_id = first_action.entity_id
+            if not entity_id:
+                continue
+
+            second_seq = second_action.metadata.get("sequence", float("inf"))
+
+            # 1. First action must succeed - check if any successful result exists before second action
+            first_result = next(
+                (r for r in results
+                 if r.value.get("success") is True
+                 and r.metadata.get("sequence", -1) < second_action.metadata.get("sequence", float("inf"))),
+                None
+            )
+            if not first_result:
+                continue
+
+            # 2. There must be an authoritative state transition for this entity to the desired end state
+            # Look for reality_change on the same entity showing status changed to cancelled
+            state_transition = next(
+                (r for r in realities
+                 if r.entity_id == entity_id
+                 and isinstance(r.value, Mapping)
+                 and r.value.get("field") == "status"
+                 and r.value.get("new") == "cancelled"),
+                None
+            )
+            if not state_transition:
+                continue
+
+            # 3. A later observation must confirm the desired resulting state is already true
+            state_transition_seq = state_transition.metadata.get("sequence", -1)
+            confirming_observation = next(
+                (o for o in observations
+                 if o.entity_id == entity_id
+                 and isinstance(o.value, Mapping)
+                 and o.value.get("status") == "cancelled"
+                 and o.metadata.get("sequence", -1) > state_transition.metadata.get("sequence", -1)),
+                None
+            )
+            if not confirming_observation:
+                continue
+
+            # 4. Second action must be a repeated action on the same entity
+            # (already verified by same entity_id)
+
+            # 5. Second action must fail with error indicating desired state already satisfied
+            second_result = next(
+                (r for r in results
+                 if r.value.get("success") is False
+                 and isinstance(r.value.get("error"), str)
+                 and ("already cancelled" in r.value["error"].lower()
+                      or "already_cancelled" in r.value["error"].lower()
+                      or "already exists" in r.value["error"].lower()
+                      or "already active" in r.value["error"].lower())),
+                None
+            )
+            if not second_result:
+                continue
+
+            # All 5 pieces of evidence present
+            supporting_evidence = tuple(
+                EvidenceReference(f"hypothesis_{index}", "causal_node", node.node_id, "Observable evidence")
+                for index, node in enumerate([
+                    first_action,
+                    state_transition,
+                    confirming_observation,
+                    second_action,
+                    second_result,
+                ])
+            )
+
+            return FailureHypothesis(
+                hypothesis_id="hypothesis_redundant_action",
+                statement="The agent repeated a successful state-changing action after the desired state was already achieved.",
+                confidence=1.0,
+                supporting_evidence=supporting_evidence,
+                metadata={"score_is_evidence_coverage_not_probability": True, "failure_id": failure.failure_id if failure else None},
+            )
+
+        return None
 
 
 def _timestamp(value: Any) -> datetime | None:
