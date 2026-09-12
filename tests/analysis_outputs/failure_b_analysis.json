@@ -1,0 +1,988 @@
+{
+  "analysis_id": "analysis_01e371e2",
+  "scenario_id": "scenario_candidate_billing_status_active_trigger_step_4",
+  "run_id": "scenario_run_88e0687b",
+  "primary_failure": "The required environment state was reached, but the run was degraded.",
+  "first_reality_divergence": "reality_evt_9ab9d44b",
+  "first_consequential_action": "action_call_7ceb1840",
+  "graph": {
+    "nodes": [
+      {
+        "node_id": "reality_evt_37409beb",
+        "node_type": "reality_change",
+        "timestamp": "2026-09-11T00:23:36.981843+00:00",
+        "source": "environment",
+        "entity_type": null,
+        "entity_id": "cust_bcdfbba2",
+        "value": {
+          "field": "customer",
+          "old": null,
+          "new": {
+            "name": "Maya",
+            "email": "maya@example.com"
+          }
+        },
+        "metadata": {
+          "sequence": 0,
+          "evidence_id": "evidence_evt_37409beb"
+        }
+      },
+      {
+        "node_id": "reality_evt_80a10128",
+        "node_type": "reality_change",
+        "timestamp": "2026-09-11T00:23:36.981843+00:00",
+        "source": "environment",
+        "entity_type": null,
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "field": "subscription",
+          "old": null,
+          "new": {
+            "customer_id": "cust_bcdfbba2",
+            "plan": "pro",
+            "status": "active"
+          }
+        },
+        "metadata": {
+          "sequence": 1,
+          "evidence_id": "evidence_evt_80a10128"
+        }
+      },
+      {
+        "node_id": "reality_evt_fdc72491",
+        "node_type": "reality_change",
+        "timestamp": "2026-09-11T00:23:36.981843+00:00",
+        "source": "environment",
+        "entity_type": "billing",
+        "entity_id": "bill_f464af3e",
+        "value": {
+          "field": "billing_account",
+          "old": null,
+          "new": {
+            "subscription_id": "sub_ab88faa5",
+            "status": "active"
+          }
+        },
+        "metadata": {
+          "sequence": 2,
+          "evidence_id": "evidence_evt_fdc72491"
+        }
+      },
+      {
+        "node_id": "reality_evt_9ab9d44b",
+        "node_type": "reality_change",
+        "timestamp": "2026-09-11T00:24:39.585080+00:00",
+        "source": "environment",
+        "entity_type": null,
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "field": "status",
+          "old": "active",
+          "new": "cancelled"
+        },
+        "metadata": {
+          "sequence": 3,
+          "evidence_id": "evidence_evt_9ab9d44b"
+        }
+      },
+      {
+        "node_id": "observation_call_81f6430b",
+        "node_type": "observation",
+        "timestamp": "2026-09-11T00:24:36.192914+00:00",
+        "source": "tool_protocol",
+        "entity_type": "customer",
+        "entity_id": "cust_bcdfbba2",
+        "value": {
+          "id": "cust_bcdfbba2",
+          "name": "Maya",
+          "email": "maya@example.com",
+          "subscription_id": "sub_ab88faa5",
+          "billing_id": "bill_f464af3e"
+        },
+        "metadata": {
+          "sequence": 1,
+          "call_id": "call_81f6430b",
+          "evidence_id": "evidence_call_81f6430b"
+        }
+      },
+      {
+        "node_id": "observation_call_c5bf34ba",
+        "node_type": "observation",
+        "timestamp": "2026-09-11T00:24:37.183094+00:00",
+        "source": "tool_protocol",
+        "entity_type": "subscription",
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "id": "sub_ab88faa5",
+          "customer_id": "cust_bcdfbba2",
+          "status": "active",
+          "plan": "pro"
+        },
+        "metadata": {
+          "sequence": 3,
+          "call_id": "call_c5bf34ba",
+          "evidence_id": "evidence_call_c5bf34ba"
+        }
+      },
+      {
+        "node_id": "observation_call_c6f7a77d",
+        "node_type": "observation",
+        "timestamp": "2026-09-11T00:24:38.290381+00:00",
+        "source": "tool_protocol",
+        "entity_type": "billing_status",
+        "entity_id": "bill_f464af3e",
+        "value": {
+          "id": "bill_f464af3e",
+          "subscription_id": "sub_ab88faa5",
+          "status": "active"
+        },
+        "metadata": {
+          "sequence": 5,
+          "call_id": "call_c6f7a77d",
+          "evidence_id": "evidence_call_c6f7a77d"
+        }
+      },
+      {
+        "node_id": "observation_call_6fd2d583",
+        "node_type": "observation",
+        "timestamp": "2026-09-11T00:24:40.655462+00:00",
+        "source": "tool_protocol",
+        "entity_type": "billing_status",
+        "entity_id": "bill_f464af3e",
+        "value": {
+          "id": "bill_f464af3e",
+          "subscription_id": "sub_ab88faa5",
+          "status": "active"
+        },
+        "metadata": {
+          "sequence": 9,
+          "call_id": "call_6fd2d583",
+          "evidence_id": "evidence_call_6fd2d583"
+        }
+      },
+      {
+        "node_id": "observation_call_ffb2f7df",
+        "node_type": "observation",
+        "timestamp": "2026-09-11T00:24:43.060071+00:00",
+        "source": "tool_protocol",
+        "entity_type": "subscription",
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "id": "sub_ab88faa5",
+          "customer_id": "cust_bcdfbba2",
+          "status": "cancelled",
+          "plan": "pro"
+        },
+        "metadata": {
+          "sequence": 11,
+          "call_id": "call_ffb2f7df",
+          "evidence_id": "evidence_call_ffb2f7df"
+        }
+      },
+      {
+        "node_id": "action_call_7ceb1840",
+        "node_type": "action",
+        "timestamp": "2026-09-11T00:24:39.585080+00:00",
+        "source": "tool_protocol",
+        "entity_type": "subscription",
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "subscription_id": "sub_ab88faa5"
+        },
+        "metadata": {
+          "sequence": 6,
+          "call_id": "call_7ceb1840",
+          "evidence_id": "evidence_call_7ceb1840"
+        }
+      },
+      {
+        "node_id": "action_call_251cf5fd",
+        "node_type": "action",
+        "timestamp": "2026-09-11T00:24:45.941935+00:00",
+        "source": "tool_protocol",
+        "entity_type": "subscription",
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "subscription_id": "sub_ab88faa5"
+        },
+        "metadata": {
+          "sequence": 12,
+          "call_id": "call_251cf5fd",
+          "evidence_id": "evidence_call_251cf5fd"
+        }
+      },
+      {
+        "node_id": "tool_result_call_ec295dab",
+        "node_type": "tool_result",
+        "timestamp": "2026-09-11T00:24:36.192914+00:00",
+        "source": "tool_protocol",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "success": true,
+          "output": {
+            "id": "cust_bcdfbba2",
+            "name": "Maya",
+            "email": "maya@example.com",
+            "subscription_id": "sub_ab88faa5",
+            "billing_id": "bill_f464af3e"
+          },
+          "error": null
+        },
+        "metadata": {
+          "sequence": 1,
+          "call_id": "call_ec295dab",
+          "evidence_id": "evidence_result_call_ec295dab"
+        }
+      },
+      {
+        "node_id": "tool_result_call_5a3a8d7f",
+        "node_type": "tool_result",
+        "timestamp": "2026-09-11T00:24:37.183094+00:00",
+        "source": "tool_protocol",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "success": true,
+          "output": {
+            "id": "sub_ab88faa5",
+            "customer_id": "cust_bcdfbba2",
+            "status": "active",
+            "plan": "pro"
+          },
+          "error": null
+        },
+        "metadata": {
+          "sequence": 3,
+          "call_id": "call_5a3a8d7f",
+          "evidence_id": "evidence_result_call_5a3a8d7f"
+        }
+      },
+      {
+        "node_id": "tool_result_call_e3031e1b",
+        "node_type": "tool_result",
+        "timestamp": "2026-09-11T00:24:38.290381+00:00",
+        "source": "tool_protocol",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "success": true,
+          "output": {
+            "id": "bill_f464af3e",
+            "subscription_id": "sub_ab88faa5",
+            "status": "active"
+          },
+          "error": null
+        },
+        "metadata": {
+          "sequence": 5,
+          "call_id": "call_e3031e1b",
+          "evidence_id": "evidence_result_call_e3031e1b"
+        }
+      },
+      {
+        "node_id": "tool_result_call_446f8885",
+        "node_type": "tool_result",
+        "timestamp": "2026-09-11T00:24:39.585080+00:00",
+        "source": "tool_protocol",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "success": true,
+          "output": {
+            "subscription": {
+              "id": "sub_ab88faa5",
+              "customer_id": "cust_bcdfbba2",
+              "status": "cancelled",
+              "plan": "pro"
+            },
+            "event": {
+              "id": "evt_9ab9d44b",
+              "event_type": "state_change",
+              "timestamp": "2026-09-11T00:24:39.585080+00:00",
+              "target": "sub_ab88faa5",
+              "field": "status",
+              "old_value": "active",
+              "new_value": "cancelled",
+              "metadata": {}
+            }
+          },
+          "error": null
+        },
+        "metadata": {
+          "sequence": 7,
+          "call_id": "call_446f8885",
+          "evidence_id": "evidence_result_call_446f8885"
+        }
+      },
+      {
+        "node_id": "tool_result_call_ef16ac8a",
+        "node_type": "tool_result",
+        "timestamp": "2026-09-11T00:24:40.655462+00:00",
+        "source": "tool_protocol",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "success": true,
+          "output": {
+            "id": "bill_f464af3e",
+            "subscription_id": "sub_ab88faa5",
+            "status": "active"
+          },
+          "error": null
+        },
+        "metadata": {
+          "sequence": 9,
+          "call_id": "call_ef16ac8a",
+          "evidence_id": "evidence_result_call_ef16ac8a"
+        }
+      },
+      {
+        "node_id": "tool_result_call_1918a99c",
+        "node_type": "tool_result",
+        "timestamp": "2026-09-11T00:24:43.060071+00:00",
+        "source": "tool_protocol",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "success": true,
+          "output": {
+            "id": "sub_ab88faa5",
+            "customer_id": "cust_bcdfbba2",
+            "status": "cancelled",
+            "plan": "pro"
+          },
+          "error": null
+        },
+        "metadata": {
+          "sequence": 11,
+          "call_id": "call_1918a99c",
+          "evidence_id": "evidence_result_call_1918a99c"
+        }
+      },
+      {
+        "node_id": "tool_result_call_c0d31e9c",
+        "node_type": "tool_result",
+        "timestamp": "2026-09-11T00:24:45.941935+00:00",
+        "source": "tool_protocol",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "success": false,
+          "output": null,
+          "error": "Subscription already cancelled: sub_ab88faa5"
+        },
+        "metadata": {
+          "sequence": 13,
+          "call_id": "call_c0d31e9c",
+          "evidence_id": "evidence_result_call_c0d31e9c"
+        }
+      },
+      {
+        "node_id": "verification",
+        "node_type": "verification",
+        "timestamp": null,
+        "source": "deterministic_verifier",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "passed": true,
+          "checks": [
+            {
+              "name": "target_subscription_identified",
+              "passed": true,
+              "expected": "subscription ID available from task evidence",
+              "actual": "sub_ab88faa5",
+              "severity": "high"
+            },
+            {
+              "name": "target_subscription_exists",
+              "passed": true,
+              "expected": true,
+              "actual": true,
+              "severity": "high"
+            },
+            {
+              "name": "subscription_cancelled",
+              "passed": true,
+              "expected": "cancelled",
+              "actual": "cancelled",
+              "severity": "high"
+            },
+            {
+              "name": "billing_account_exists",
+              "passed": true,
+              "expected": true,
+              "actual": true,
+              "severity": "high"
+            },
+            {
+              "name": "cancellation_action_or_resolution_via_tool_protocol",
+              "passed": true,
+              "expected": "successful cancellation or successful state reconciliation",
+              "actual": {
+                "successful_cancel": true,
+                "successful_reconciliation": false
+              },
+              "severity": "high"
+            },
+            {
+              "name": "valid_cancellation_transition_recorded",
+              "passed": true,
+              "expected": "active|paused -> cancelled subscription event",
+              "actual": {
+                "subscription_events": [
+                  {
+                    "id": "evt_9ab9d44b",
+                    "event_type": "state_change",
+                    "timestamp": "2026-09-11T00:24:39.585080+00:00",
+                    "target": "sub_ab88faa5",
+                    "field": "status",
+                    "old_value": "active",
+                    "new_value": "cancelled",
+                    "metadata": {}
+                  }
+                ],
+                "billing_cancelled": false
+              },
+              "severity": "medium"
+            }
+          ],
+          "errors": [],
+          "metadata": {
+            "task_type": "subscription_cancellation",
+            "subscription_id": "sub_ab88faa5",
+            "billing_id": "bill_f464af3e",
+            "unsafe_actions": [],
+            "fresh_billing_observation": false,
+            "successful_reconciliation": false,
+            "evidence_available": true
+          }
+        },
+        "metadata": {
+          "evidence_id": "evidence_verification"
+        }
+      },
+      {
+        "node_id": "outcome",
+        "node_type": "outcome",
+        "timestamp": null,
+        "source": "failure_detector",
+        "entity_type": null,
+        "entity_id": null,
+        "value": {
+          "scenario_status": "agent_failed",
+          "failure": {
+            "failure_id": "failure_56fa2250",
+            "scenario_id": "scenario_candidate_billing_status_active_trigger_step_4",
+            "run_id": "scenario_run_88e0687b",
+            "outcome": "degraded",
+            "severity": "low",
+            "summary": "The required environment state was reached, but the run was degraded.",
+            "affected_entities": [
+              "sub_ab88faa5",
+              "bill_f464af3e"
+            ],
+            "failed_checks": [],
+            "unsafe_actions": [],
+            "first_detected_event_id": "evt_37409beb",
+            "metadata": {
+              "scenario_status": "agent_failed",
+              "verification": {
+                "passed": true,
+                "checks": [
+                  {
+                    "name": "target_subscription_identified",
+                    "passed": true,
+                    "expected": "subscription ID available from task evidence",
+                    "actual": "sub_ab88faa5",
+                    "severity": "high"
+                  },
+                  {
+                    "name": "target_subscription_exists",
+                    "passed": true,
+                    "expected": true,
+                    "actual": true,
+                    "severity": "high"
+                  },
+                  {
+                    "name": "subscription_cancelled",
+                    "passed": true,
+                    "expected": "cancelled",
+                    "actual": "cancelled",
+                    "severity": "high"
+                  },
+                  {
+                    "name": "billing_account_exists",
+                    "passed": true,
+                    "expected": true,
+                    "actual": true,
+                    "severity": "high"
+                  },
+                  {
+                    "name": "cancellation_action_or_resolution_via_tool_protocol",
+                    "passed": true,
+                    "expected": "successful cancellation or successful state reconciliation",
+                    "actual": {
+                      "successful_cancel": true,
+                      "successful_reconciliation": false
+                    },
+                    "severity": "high"
+                  },
+                  {
+                    "name": "valid_cancellation_transition_recorded",
+                    "passed": true,
+                    "expected": "active|paused -> cancelled subscription event",
+                    "actual": {
+                      "subscription_events": [
+                        {
+                          "id": "evt_9ab9d44b",
+                          "event_type": "state_change",
+                          "timestamp": "2026-09-11T00:24:39.585080+00:00",
+                          "target": "sub_ab88faa5",
+                          "field": "status",
+                          "old_value": "active",
+                          "new_value": "cancelled",
+                          "metadata": {}
+                        }
+                      ],
+                      "billing_cancelled": false
+                    },
+                    "severity": "medium"
+                  }
+                ],
+                "errors": [],
+                "metadata": {
+                  "task_type": "subscription_cancellation",
+                  "subscription_id": "sub_ab88faa5",
+                  "billing_id": "bill_f464af3e",
+                  "unsafe_actions": [],
+                  "fresh_billing_observation": false,
+                  "successful_reconciliation": false,
+                  "evidence_available": true
+                }
+              }
+            }
+          }
+        },
+        "metadata": {}
+      },
+      {
+        "node_id": "decision_basis_action_call_7ceb1840",
+        "node_type": "decision_basis",
+        "timestamp": "2026-09-11T00:24:39.585080+00:00",
+        "source": "observable_execution_context",
+        "entity_type": "subscription",
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "observations": [
+            "observation_call_81f6430b",
+            "observation_call_c5bf34ba",
+            "observation_call_c6f7a77d"
+          ]
+        },
+        "metadata": {}
+      },
+      {
+        "node_id": "decision_basis_action_call_251cf5fd",
+        "node_type": "decision_basis",
+        "timestamp": "2026-09-11T00:24:45.941935+00:00",
+        "source": "observable_execution_context",
+        "entity_type": "subscription",
+        "entity_id": "sub_ab88faa5",
+        "value": {
+          "observations": [
+            "observation_call_81f6430b",
+            "observation_call_c5bf34ba",
+            "observation_call_c6f7a77d",
+            "observation_call_6fd2d583",
+            "observation_call_ffb2f7df"
+          ]
+        },
+        "metadata": {}
+      }
+    ],
+    "edges": [
+      {
+        "edge_id": "edge_1",
+        "source_node_id": "reality_evt_9ab9d44b",
+        "target_node_id": "observation_call_c5bf34ba",
+        "relation": "contradicted",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_2",
+        "source_node_id": "observation_call_81f6430b",
+        "target_node_id": "decision_basis_action_call_7ceb1840",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_3",
+        "source_node_id": "observation_call_c5bf34ba",
+        "target_node_id": "decision_basis_action_call_7ceb1840",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_4",
+        "source_node_id": "observation_call_c6f7a77d",
+        "target_node_id": "decision_basis_action_call_7ceb1840",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_5",
+        "source_node_id": "decision_basis_action_call_7ceb1840",
+        "target_node_id": "action_call_7ceb1840",
+        "relation": "followed_by",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_6",
+        "source_node_id": "observation_call_81f6430b",
+        "target_node_id": "decision_basis_action_call_251cf5fd",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_7",
+        "source_node_id": "observation_call_c5bf34ba",
+        "target_node_id": "decision_basis_action_call_251cf5fd",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_8",
+        "source_node_id": "observation_call_c6f7a77d",
+        "target_node_id": "decision_basis_action_call_251cf5fd",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_9",
+        "source_node_id": "observation_call_6fd2d583",
+        "target_node_id": "decision_basis_action_call_251cf5fd",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_10",
+        "source_node_id": "observation_call_ffb2f7df",
+        "target_node_id": "decision_basis_action_call_251cf5fd",
+        "relation": "observed",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_11",
+        "source_node_id": "decision_basis_action_call_251cf5fd",
+        "target_node_id": "action_call_251cf5fd",
+        "relation": "followed_by",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_12",
+        "source_node_id": "tool_result_call_ec295dab",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_13",
+        "source_node_id": "tool_result_call_5a3a8d7f",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_14",
+        "source_node_id": "tool_result_call_e3031e1b",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_15",
+        "source_node_id": "tool_result_call_446f8885",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_16",
+        "source_node_id": "tool_result_call_ef16ac8a",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_17",
+        "source_node_id": "tool_result_call_1918a99c",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_18",
+        "source_node_id": "tool_result_call_c0d31e9c",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_19",
+        "source_node_id": "action_call_7ceb1840",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_20",
+        "source_node_id": "action_call_251cf5fd",
+        "target_node_id": "verification",
+        "relation": "associated_with",
+        "evidence": [],
+        "metadata": {}
+      },
+      {
+        "edge_id": "edge_21",
+        "source_node_id": "verification",
+        "target_node_id": "outcome",
+        "relation": "resulted_in",
+        "evidence": [],
+        "metadata": {}
+      }
+    ]
+  },
+  "hypotheses": [
+    {
+      "hypothesis_id": "hypothesis_redundant_action",
+      "statement": "The agent repeated a successful state-changing action after the desired state was already achieved.",
+      "confidence": 1.0,
+      "supporting_evidence": [
+        {
+          "evidence_id": "hypothesis_0",
+          "source_type": "causal_node",
+          "source_id": "action_call_7ceb1840",
+          "description": "Observable evidence",
+          "timestamp": null,
+          "metadata": {}
+        },
+        {
+          "evidence_id": "hypothesis_1",
+          "source_type": "causal_node",
+          "source_id": "reality_evt_9ab9d44b",
+          "description": "Observable evidence",
+          "timestamp": null,
+          "metadata": {}
+        },
+        {
+          "evidence_id": "hypothesis_2",
+          "source_type": "causal_node",
+          "source_id": "observation_call_ffb2f7df",
+          "description": "Observable evidence",
+          "timestamp": null,
+          "metadata": {}
+        },
+        {
+          "evidence_id": "hypothesis_3",
+          "source_type": "causal_node",
+          "source_id": "action_call_251cf5fd",
+          "description": "Observable evidence",
+          "timestamp": null,
+          "metadata": {}
+        },
+        {
+          "evidence_id": "hypothesis_4",
+          "source_type": "causal_node",
+          "source_id": "tool_result_call_c0d31e9c",
+          "description": "Observable evidence",
+          "timestamp": null,
+          "metadata": {}
+        }
+      ],
+      "contradicting_evidence": [],
+      "metadata": {
+        "score_is_evidence_coverage_not_probability": true,
+        "failure_id": "failure_56fa2250"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_evt_37409beb",
+      "source_type": "environment_event",
+      "source_id": "evt_37409beb",
+      "description": "Authoritative environment event",
+      "timestamp": null,
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_evt_80a10128",
+      "source_type": "environment_event",
+      "source_id": "evt_80a10128",
+      "description": "Authoritative environment event",
+      "timestamp": null,
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_evt_fdc72491",
+      "source_type": "environment_event",
+      "source_id": "evt_fdc72491",
+      "description": "Authoritative environment event",
+      "timestamp": null,
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_evt_9ab9d44b",
+      "source_type": "environment_event",
+      "source_id": "evt_9ab9d44b",
+      "description": "Authoritative environment event",
+      "timestamp": null,
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_call_81f6430b",
+      "source_type": "tool_result",
+      "source_id": "call_81f6430b",
+      "description": "Observable result from get_customer",
+      "timestamp": "2026-09-11T00:24:36.192914+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_call_c5bf34ba",
+      "source_type": "tool_result",
+      "source_id": "call_c5bf34ba",
+      "description": "Observable result from get_subscription",
+      "timestamp": "2026-09-11T00:24:37.183094+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_call_c6f7a77d",
+      "source_type": "tool_result",
+      "source_id": "call_c6f7a77d",
+      "description": "Observable result from get_billing_status",
+      "timestamp": "2026-09-11T00:24:38.290381+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_call_6fd2d583",
+      "source_type": "tool_result",
+      "source_id": "call_6fd2d583",
+      "description": "Observable result from get_billing_status",
+      "timestamp": "2026-09-11T00:24:40.655462+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_call_ffb2f7df",
+      "source_type": "tool_result",
+      "source_id": "call_ffb2f7df",
+      "description": "Observable result from get_subscription",
+      "timestamp": "2026-09-11T00:24:43.060071+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_call_7ceb1840",
+      "source_type": "tool_call",
+      "source_id": "call_7ceb1840",
+      "description": "Consequential cancellation tool call",
+      "timestamp": "2026-09-11T00:24:39.585080+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_call_251cf5fd",
+      "source_type": "tool_call",
+      "source_id": "call_251cf5fd",
+      "description": "Consequential cancellation tool call",
+      "timestamp": "2026-09-11T00:24:45.941935+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_result_call_ec295dab",
+      "source_type": "tool_result",
+      "source_id": "call_ec295dab",
+      "description": "Observable tool result",
+      "timestamp": "2026-09-11T00:24:36.192914+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_result_call_5a3a8d7f",
+      "source_type": "tool_result",
+      "source_id": "call_5a3a8d7f",
+      "description": "Observable tool result",
+      "timestamp": "2026-09-11T00:24:37.183094+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_result_call_e3031e1b",
+      "source_type": "tool_result",
+      "source_id": "call_e3031e1b",
+      "description": "Observable tool result",
+      "timestamp": "2026-09-11T00:24:38.290381+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_result_call_446f8885",
+      "source_type": "tool_result",
+      "source_id": "call_446f8885",
+      "description": "Observable tool result",
+      "timestamp": "2026-09-11T00:24:39.585080+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_result_call_ef16ac8a",
+      "source_type": "tool_result",
+      "source_id": "call_ef16ac8a",
+      "description": "Observable tool result",
+      "timestamp": "2026-09-11T00:24:40.655462+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_result_call_1918a99c",
+      "source_type": "tool_result",
+      "source_id": "call_1918a99c",
+      "description": "Observable tool result",
+      "timestamp": "2026-09-11T00:24:43.060071+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_result_call_c0d31e9c",
+      "source_type": "tool_result",
+      "source_id": "call_c0d31e9c",
+      "description": "Observable tool result",
+      "timestamp": "2026-09-11T00:24:45.941935+00:00",
+      "metadata": {}
+    },
+    {
+      "evidence_id": "evidence_verification",
+      "source_type": "verification",
+      "source_id": "verification",
+      "description": "Deterministic verification result",
+      "timestamp": null,
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "timeline_length": 14,
+    "evidence_only": true
+  }
+}
