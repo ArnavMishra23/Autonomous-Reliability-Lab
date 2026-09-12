@@ -41,6 +41,7 @@ Thumbs.db
 data/
 tmp/
 artifacts/
+reports/
 
 # Python build artifacts
 build/
