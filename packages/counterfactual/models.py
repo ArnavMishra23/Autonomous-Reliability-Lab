@@ -74,6 +74,7 @@ class CounterfactualResult:
     verification: VerificationResult | None
     failure: FailureRecord | None
     environment_restored: bool
+    intervention_reached: bool = False
     metadata: Mapping[str, Any] = field(default_factory=dict)
     validation_runs: int = 1
     successful_runs: int = 0
@@ -93,6 +94,7 @@ class CounterfactualResult:
             "verification": self.verification.to_dict() if self.verification else None,
             "failure": self.failure.to_dict() if self.failure else None,
             "environment_restored": self.environment_restored,
+            "intervention_reached": self.intervention_reached,
             "metadata": _json_value(self.metadata),
             "validation_runs": self.validation_runs,
             "successful_runs": self.successful_runs,

@@ -45,22 +45,28 @@ class CounterfactualExecutor:
         verification = None
         failure = None
         status = CounterfactualStatus.EXECUTION_ERROR
+        intervention_reached = False
         metadata: dict[str, object] = {}
         try:
             # Ensure we start from a clean baseline by restoring the supplied starting state
             environment.restore(starting_state)
+            wrapped_agent = _WrappedAgent(agent, candidate)
             scenario_run = self._runner.run(
                 scenario,
                 environment,
-                _WrappedAgent(agent, candidate),
+                wrapped_agent,
             )
+            intervention_reached = wrapped_agent.intervention_reached
             verification = self._verifier.verify(scenario_run)
             failure = self._detector.detect(scenario_run, verification)
-            status = (
-                CounterfactualStatus.VALIDATED
-                if verification.passed and failure is None and scenario_run.agent_run is not None
-                else CounterfactualStatus.FAILED
-            )
+
+            if not intervention_reached:
+                status = CounterfactualStatus.INCONCLUSIVE
+            elif verification.passed and failure is None and scenario_run.agent_run is not None:
+                status = CounterfactualStatus.VALIDATED
+            else:
+                status = CounterfactualStatus.FAILED
+
             metadata = {
                 "scenario_status": scenario_run.status.value,
                 "tool_sequence": [
@@ -91,6 +97,7 @@ class CounterfactualExecutor:
             verification=verification,
             failure=failure,
             environment_restored=restored,
+            intervention_reached=intervention_reached,
             metadata=metadata,
         )
 
@@ -110,6 +117,7 @@ class CounterfactualExecutor:
             for _ in range(runs)
         ]
         successful = sum(result.status == CounterfactualStatus.VALIDATED for result in results)
+        all_reached = all(result.intervention_reached for result in results)
         final = results[-1]
         return CounterfactualResult(
             result_id=final.result_id,
@@ -124,6 +132,7 @@ class CounterfactualExecutor:
             verification=final.verification,
             failure=final.failure,
             environment_restored=all(result.environment_restored for result in results),
+            intervention_reached=all_reached,
             metadata={"repeated_validation": True},
             validation_runs=runs,
             successful_runs=successful,
@@ -135,6 +144,7 @@ class _WrappedAgent:
     def __init__(self, agent: TargetAgent, candidate: CounterfactualCandidate) -> None:
         self._agent = agent
         self._candidate = candidate
+        self._tool_interface: InterventionToolInterface | None = None
 
     def run_with_step_hook(
         self,
@@ -142,11 +152,19 @@ class _WrappedAgent:
         *,
         step_hook,
     ) -> AgentRun:
+        def make_wrapper(base: TargetAgentToolInterface) -> InterventionToolInterface:
+            self._tool_interface = InterventionToolInterface(base, self._candidate.intervention)
+            return self._tool_interface
+
         return self._agent.run_with_tool_wrapper_and_step_hook(
             task,
-            lambda base: InterventionToolInterface(base, self._candidate.intervention),
+            make_wrapper,
             step_hook=step_hook,
         )
+
+    @property
+    def intervention_reached(self) -> bool:
+        return self._tool_interface.intervention_reached if self._tool_interface else False
 
 
 def _final_subscription_status(scenario_run) -> str | None:

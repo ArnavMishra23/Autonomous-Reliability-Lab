@@ -17,6 +17,7 @@ class InterventionToolInterface:
     def __init__(self, base: TargetAgentToolInterface, intervention: Intervention) -> None:
         self._base = base
         self._intervention = intervention
+        self._intervention_reached = False
 
     @property
     def available_tools(self) -> tuple[ToolDefinition, ...]:
@@ -26,14 +27,20 @@ class InterventionToolInterface:
     def trace(self) -> ToolTrace:
         return self._base.trace
 
+    @property
+    def intervention_reached(self) -> bool:
+        return self._intervention_reached
+
     def reset_trace(self) -> None:
         self._base.reset_trace()
+        self._intervention_reached = False
 
     def execute(self, tool_name: str, arguments: Mapping[str, Any], step: int = 0) -> ToolResult:
         if (
             self._intervention.intervention_type == InterventionType.REQUIRED_OBSERVATION
             and tool_name == self._intervention.target
         ):
+            self._intervention_reached = True
             observation_tool = self._intervention.value
             observation_arguments = self._observation_arguments(arguments)
             observation_result = self._base.execute(observation_tool, observation_arguments, step=step)
