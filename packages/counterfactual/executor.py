@@ -47,8 +47,11 @@ class CounterfactualExecutor:
         status = CounterfactualStatus.EXECUTION_ERROR
         intervention_reached = False
         metadata: dict[str, object] = {}
+        tool_sequence: list[str] = []
+        model_calls = 0
+        agent_steps = 0
+        tool_calls = 0
         try:
-            # Ensure we start from a clean baseline by restoring the supplied starting state
             environment.restore(starting_state)
             wrapped_agent = _WrappedAgent(agent, candidate)
             scenario_run = self._runner.run(
@@ -57,31 +60,54 @@ class CounterfactualExecutor:
                 wrapped_agent,
             )
             intervention_reached = wrapped_agent.intervention_reached
-            verification = self._verifier.verify(scenario_run)
-            failure = self._detector.detect(scenario_run, verification)
+
+            # Extract telemetry from the agent run
+            if scenario_run.agent_run is not None:
+                trace_entries = scenario_run.agent_run.trace.entries
+                tool_sequence = [entry.call.tool_name for entry in trace_entries]
+                tool_calls = len(trace_entries)
+                # Agent steps = max step number in trace, or 0 if no trace
+                agent_steps = max((entry.call.step for entry in trace_entries), default=0)
+                # Model calls = tool_calls + 1 (for the final response that completed or failed)
+                # If the agent completed without tools, model_calls = 1
+                # If the agent made tool calls and then completed/failed, model_calls = tool_calls + 1
+                # If the agent failed before any tool call, model_calls = 1
+                if tool_calls > 0:
+                    model_calls = tool_calls + 1
+                else:
+                    model_calls = 1
+            else:
+                tool_sequence = []
+                tool_calls = 0
+                agent_steps = 0
+                model_calls = 0
 
             if not intervention_reached:
                 status = CounterfactualStatus.INCONCLUSIVE
-            elif verification.passed and failure is None and scenario_run.agent_run is not None:
-                status = CounterfactualStatus.VALIDATED
+                # When intervention not reached, verification is not applicable
+                verification = None
+                failure = None
             else:
-                status = CounterfactualStatus.FAILED
+                verification = self._verifier.verify(scenario_run)
+                failure = self._detector.detect(scenario_run, verification)
+
+                if verification.passed and failure is None and scenario_run.agent_run is not None:
+                    status = CounterfactualStatus.VALIDATED
+                else:
+                    status = CounterfactualStatus.FAILED
 
             metadata = {
                 "scenario_status": scenario_run.status.value,
-                "tool_sequence": [
-                    entry.call.tool_name
-                    for entry in scenario_run.agent_run.trace.entries
-                ]
-                if scenario_run.agent_run
-                else [],
+                "tool_sequence": tool_sequence,
+                "model_calls": model_calls,
+                "agent_steps": agent_steps,
+                "tool_calls": tool_calls,
                 "final_subscription_status": _final_subscription_status(scenario_run),
                 "final_billing_status": _final_billing_status(scenario_run),
             }
         except Exception as exc:
             metadata = {"error": str(exc)}
         try:
-            # Always restore to the supplied starting state after execution
             environment.restore(starting_state)
             restored = True
         except Exception as exc:

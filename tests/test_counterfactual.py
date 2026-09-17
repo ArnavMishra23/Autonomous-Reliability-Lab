@@ -693,3 +693,371 @@ def test_environment_restoration_unchanged() -> None:
 
     assert result.environment_restored is True
     assert environment.snapshot() == original_state
+
+
+# =============================================================================
+# NEW TESTS: Counterfactual instrumentation and telemetry
+# =============================================================================
+
+def test_tool_sequence_captured_when_agent_makes_tool_calls() -> None:
+    """A trajectory containing get_customer does not produce tool_sequence=[]."""
+    environment, scenario, agent, _, _ = create_flagship()
+    original_state = environment.snapshot()
+    original_run = get_original_run(environment, scenario, agent)
+    verification = DeterministicVerifier().verify(original_run)
+    failure = FailureDetector().detect(original_run, verification)
+    analysis = CausalAnalyzer().analyze(original_run, verification, failure)
+    candidate = generate_candidates(analysis)[0]
+
+    result = CounterfactualExecutor().execute(
+        scenario,
+        original_state,
+        environment,
+        agent,
+        candidate,
+        original_run_id=original_run.run_id,
+    )
+
+    # The mock provider makes multiple tool calls
+    assert result.metadata.get("tool_sequence") is not None
+    assert len(result.metadata["tool_sequence"]) > 0
+    assert "get_customer" in result.metadata["tool_sequence"]
+    assert result.metadata["tool_calls"] > 0
+    assert result.metadata["agent_steps"] > 0
+    assert result.metadata["model_calls"] > 0
+
+
+def test_counters_nonzero_when_execution_occurred() -> None:
+    """Counters are nonzero when actual model/tool execution occurred."""
+    environment, scenario, agent, _, _ = create_flagship()
+    original_state = environment.snapshot()
+    original_run = get_original_run(environment, scenario, agent)
+    verification = DeterministicVerifier().verify(original_run)
+    failure = FailureDetector().detect(original_run, verification)
+    analysis = CausalAnalyzer().analyze(original_run, verification, failure)
+    candidate = generate_candidates(analysis)[0]
+
+    result = CounterfactualExecutor().execute(
+        scenario,
+        original_state,
+        environment,
+        agent,
+        candidate,
+        original_run_id=original_run.run_id,
+    )
+
+    assert result.metadata["tool_calls"] > 0
+    assert result.metadata["agent_steps"] > 0
+    assert result.metadata["model_calls"] > 0
+    assert len(result.metadata["tool_sequence"]) == result.metadata["tool_calls"]
+
+
+def test_intervention_not_reached_always_inconclusive() -> None:
+    """intervention_reached=false always produces INCONCLUSIVE."""
+    from packages.agent import TargetAgent, TargetAgentToolInterface, build_tool_registry
+    from packages.environment.service import EnvironmentService
+    from packages.discovery.scenario import Scenario, Perturbation, PerturbationType, Trigger, TriggerType
+    from packages.agent import AgentTask, ModelProvider, ModelResponse, ToolRequest
+
+    environment = EnvironmentService()
+    customer = environment.create_customer(name="Maya", email="maya@example.com")
+    subscription = environment.create_subscription(customer_id=customer.id, plan="pro")
+    billing = environment.create_billing_account(subscription_id=subscription.id)
+
+    scenario = Scenario(
+        scenario_id="inconclusive-test",
+        name="Inconclusive test",
+        description="Model completes early.",
+        task=AgentTask(
+            task_id="task-inconclusive",
+            goal="Process Maya's subscription cancellation.",
+        ),
+        perturbations=(
+            Perturbation(
+                perturbation_id="billing-drift",
+                type=PerturbationType.STATE_CHANGE,
+                target=f"billing.{billing.id}.status",
+                value="cancelled",
+                trigger=Trigger(TriggerType.AGENT_STEP, step=4),
+            ),
+        ),
+    )
+
+    class EarlyStopProvider:
+        def __init__(self, customer_id: str, subscription_id: str, billing_id: str):
+            self.customer_id = customer_id
+            self.subscription_id = subscription_id
+            self.billing_id = billing_id
+
+        def complete(self, *, system_instructions, task, available_tools, previous_trace):
+            if previous_trace and previous_trace[-1].call.tool_name == "get_customer":
+                return ModelResponse(content="Done early.", completed=True)
+            requests = (
+                ToolRequest("get_customer", {"customer_id": self.customer_id}),
+                ToolRequest("get_subscription", {"subscription_id": self.subscription_id}),
+                ToolRequest("get_billing_status", {"billing_id": self.billing_id}),
+                ToolRequest("cancel_subscription", {"subscription_id": self.subscription_id}),
+            )
+            step = len(previous_trace)
+            if step < len(requests):
+                return ModelResponse(content=f"Step {step+1}", tool_calls=(requests[step],))
+            return ModelResponse(content="Done.", completed=True)
+
+    environment = EnvironmentService()
+    customer = environment.create_customer(name="Maya", email="maya@example.com")
+    subscription = environment.create_subscription(customer_id=customer.id, plan="pro")
+    billing = environment.create_billing_account(subscription_id=subscription.id)
+
+    agent = TargetAgent(
+        TargetAgentToolInterface(build_tool_registry(environment)),
+        EarlyStopProvider(customer.id, subscription.id, billing.id),
+        max_steps=10,
+    )
+
+    original_state = environment.snapshot()
+    original_run = ScenarioRunner().run(scenario, environment, agent)
+    verification = DeterministicVerifier().verify(original_run)
+    failure = FailureDetector().detect(original_run, verification)
+    analysis = CausalAnalyzer().analyze(original_run, verification, failure)
+    candidates = generate_candidates(analysis)
+
+    if not candidates:
+        return
+
+    candidate = candidates[0]
+    original_state = environment.snapshot()
+
+    result = CounterfactualExecutor().execute(
+        scenario,
+        original_state,
+        environment,
+        agent,
+        candidate,
+        original_run_id=original_run.run_id,
+    )
+
+    assert result.intervention_reached is False
+    assert result.status == CounterfactualStatus.INCONCLUSIVE
+    assert result.verification is None
+    assert result.failure is None
+
+
+def test_unreached_intervention_not_reported_as_failed_repair() -> None:
+    """Unreached interventions are not reported as failed repairs."""
+    from packages.agent import TargetAgent, TargetAgentToolInterface, build_tool_registry
+    from packages.environment.service import EnvironmentService
+    from packages.discovery.scenario import Scenario, Perturbation, PerturbationType, Trigger, TriggerType
+    from packages.agent import AgentTask, ModelProvider, ModelResponse, ToolRequest
+
+    environment = EnvironmentService()
+    customer = environment.create_customer(name="Maya", email="maya@example.com")
+    subscription = environment.create_subscription(customer_id=customer.id, plan="pro")
+    billing = environment.create_billing_account(subscription_id=subscription.id)
+
+    scenario = Scenario(
+        scenario_id="unreached-not-failed",
+        name="Unreached not failed",
+        description="Model completes early.",
+        task=AgentTask(
+            task_id="task-unreached",
+            goal="Process Maya's subscription cancellation.",
+        ),
+        perturbations=(
+            Perturbation(
+                perturbation_id="billing-drift",
+                type=PerturbationType.STATE_CHANGE,
+                target=f"billing.{billing.id}.status",
+                value="cancelled",
+                trigger=Trigger(TriggerType.AGENT_STEP, step=4),
+            ),
+        ),
+    )
+
+    class EarlyStopProvider:
+        def __init__(self, customer_id: str, subscription_id: str, billing_id: str):
+            self.customer_id = customer_id
+            self.subscription_id = subscription_id
+            self.billing_id = billing_id
+
+        def complete(self, *, system_instructions, task, available_tools, previous_trace):
+            if previous_trace and previous_trace[-1].call.tool_name == "get_customer":
+                return ModelResponse(content="Done early.", completed=True)
+            requests = (
+                ToolRequest("get_customer", {"customer_id": self.customer_id}),
+                ToolRequest("get_subscription", {"subscription_id": self.subscription_id}),
+                ToolRequest("get_billing_status", {"billing_id": self.billing_id}),
+                ToolRequest("cancel_subscription", {"subscription_id": self.subscription_id}),
+            )
+            step = len(previous_trace)
+            if step < len(requests):
+                return ModelResponse(content=f"Step {step+1}", tool_calls=(requests[step],))
+            return ModelResponse(content="Done.", completed=True)
+
+    environment = EnvironmentService()
+    customer = environment.create_customer(name="Maya", email="maya@example.com")
+    subscription = environment.create_subscription(customer_id=customer.id, plan="pro")
+    billing = environment.create_billing_account(subscription_id=subscription.id)
+
+    agent = TargetAgent(
+        TargetAgentToolInterface(build_tool_registry(environment)),
+        EarlyStopProvider(customer.id, subscription.id, billing.id),
+        max_steps=10,
+    )
+
+    original_state = environment.snapshot()
+    original_run = ScenarioRunner().run(scenario, environment, agent)
+    verification = DeterministicVerifier().verify(original_run)
+    failure = FailureDetector().detect(original_run, verification)
+    analysis = CausalAnalyzer().analyze(original_run, verification, failure)
+    candidates = generate_candidates(analysis)
+
+    if not candidates:
+        return
+
+    candidate = candidates[0]
+    original_state = environment.snapshot()
+
+    result = CounterfactualExecutor().execute(
+        scenario,
+        original_state,
+        environment,
+        agent,
+        candidate,
+        original_run_id=original_run.run_id,
+    )
+
+    # Must be INCONCLUSIVE, not FAILED
+    assert result.status == CounterfactualStatus.INCONCLUSIVE
+    assert result.intervention_reached is False
+    # Verification should be None when intervention not reached
+    assert result.verification is None
+    assert result.failure is None
+
+
+def test_verification_not_run_when_intervention_unreached() -> None:
+    """Verification is not run when intervention not reached."""
+    from packages.agent import TargetAgent, TargetAgentToolInterface, build_tool_registry
+    from packages.environment.service import EnvironmentService
+    from packages.discovery.scenario import Scenario, Perturbation, PerturbationType, Trigger, TriggerType
+    from packages.agent import AgentTask, ModelProvider, ModelResponse, ToolRequest
+
+    environment = EnvironmentService()
+    customer = environment.create_customer(name="Maya", email="maya@example.com")
+    subscription = environment.create_subscription(customer_id=customer.id, plan="pro")
+    billing = environment.create_billing_account(subscription_id=subscription.id)
+
+    scenario = Scenario(
+        scenario_id="verification-not-run",
+        name="Verification not run test",
+        description="Model completes early.",
+        task=AgentTask(
+            task_id="task-verification",
+            goal="Process Maya's subscription cancellation.",
+        ),
+        perturbations=(
+            Perturbation(
+                perturbation_id="billing-drift",
+                type=PerturbationType.STATE_CHANGE,
+                target=f"billing.{billing.id}.status",
+                value="cancelled",
+                trigger=Trigger(TriggerType.AGENT_STEP, step=4),
+            ),
+        ),
+    )
+
+    class EarlyStopProvider:
+        def __init__(self, customer_id: str, subscription_id: str, billing_id: str):
+            self.customer_id = customer_id
+            self.subscription_id = subscription_id
+            self.billing_id = billing_id
+
+        def complete(self, *, system_instructions, task, available_tools, previous_trace):
+            if previous_trace and previous_trace[-1].call.tool_name == "get_customer":
+                return ModelResponse(content="Done early.", completed=True)
+            requests = (
+                ToolRequest("get_customer", {"customer_id": self.customer_id}),
+                ToolRequest("get_subscription", {"subscription_id": self.subscription_id}),
+                ToolRequest("get_billing_status", {"billing_id": self.billing_id}),
+                ToolRequest("cancel_subscription", {"subscription_id": self.subscription_id}),
+            )
+            step = len(previous_trace)
+            if step < len(requests):
+                return ModelResponse(content=f"Step {step+1}", tool_calls=(requests[step],))
+            return ModelResponse(content="Done.", completed=True)
+
+    environment = EnvironmentService()
+    customer = environment.create_customer(name="Maya", email="maya@example.com")
+    subscription = environment.create_subscription(customer_id=customer.id, plan="pro")
+    billing = environment.create_billing_account(subscription_id=subscription.id)
+
+    agent = TargetAgent(
+        TargetAgentToolInterface(build_tool_registry(environment)),
+        EarlyStopProvider(customer.id, subscription.id, billing.id),
+        max_steps=10,
+    )
+
+    original_state = environment.snapshot()
+    original_run = ScenarioRunner().run(scenario, environment, agent)
+    verification = DeterministicVerifier().verify(original_run)
+    failure = FailureDetector().detect(original_run, verification)
+    analysis = CausalAnalyzer().analyze(original_run, verification, failure)
+    candidates = generate_candidates(analysis)
+
+    if not candidates:
+        return
+
+    candidate = candidates[0]
+    original_state = environment.snapshot()
+
+    result = CounterfactualExecutor().execute(
+        scenario,
+        original_state,
+        environment,
+        agent,
+        candidate,
+        original_run_id=original_run.run_id,
+    )
+
+    # When intervention not reached, verification should be None
+    assert result.intervention_reached is False
+    assert result.verification is None
+    assert result.failure is None
+    assert result.status == CounterfactualStatus.INCONCLUSIVE
+
+
+def test_source_provenance_includes_both_source_artifacts() -> None:
+    """Source provenance includes both discovery and counterfactual artifacts."""
+    from packages.counterfactual.models import CounterfactualResult, CounterfactualStatus
+    from packages.discovery.failure.models import VerificationResult
+
+    result = CounterfactualResult(
+        result_id="test",
+        candidate_id="test",
+        original_run_id="orig",
+        counterfactual_run_id="cf",
+        status=CounterfactualStatus.VALIDATED,
+        verification=VerificationResult(passed=True, checks=(), errors=()),
+        failure=None,
+        environment_restored=True,
+        intervention_reached=True,
+        metadata={
+            "tool_sequence": ["get_customer", "get_billing_status"],
+            "model_calls": 2,
+            "agent_steps": 1,
+            "tool_calls": 1,
+        },
+    )
+
+    # Test that the to_dict includes all necessary provenance fields
+    data = result.to_dict()
+    assert "result_id" in data
+    assert "candidate_id" in data
+    assert "original_run_id" in data
+    assert "counterfactual_run_id" in data
+    assert "status" in data
+    assert "intervention_reached" in data
+    assert "metadata" in data
+    assert data["metadata"]["tool_sequence"] == ["get_customer", "get_billing_status"]
+    assert data["metadata"]["model_calls"] == 2
+    assert data["metadata"]["agent_steps"] == 1
+    assert data["metadata"]["tool_calls"] == 1
