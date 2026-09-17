@@ -107,6 +107,12 @@
     const { experiment, discovery } = reportData;
     const outcomeCounts = experiment.outcome_counts || {};
     const failureA = reportData.failures.find(f => f.id === 'A');
+    const explanationA = reportData.explanations.find(e => e.failure === 'A');
+
+    const observedBilling = explanationA?.observation?.includes('active') ? 'active' :
+                           explanationA?.observation?.includes('cancelled') ? 'cancelled' :
+                           failureA?.billing_state;
+    const realityBilling = failureA?.billing_state;
 
     const candidatesHtml = (reportData.discovery?.candidates_evaluated || []).map(c => `
         <div class="evidence-card ${c.has_failure ? 'danger' : 'success'} candidate-card">
@@ -180,11 +186,11 @@
         <div class="failure-summary">
             <div class="summary-row">
                 <div class="summary-label">Observed</div>
-                <div class="summary-value ${failureA.billing_state === 'active' ? 'success' : 'danger'}">${failureA.billing_state.toUpperCase()}</div>
+                <div class="summary-value ${observedBilling === 'active' ? 'success' : 'danger'}">${observedBilling.toUpperCase()}</div>
             </div>
             <div class="summary-row">
                 <div class="summary-label">Reality</div>
-                <div class="summary-value ${failureA.billing_state === 'cancelled' ? 'success' : 'danger'}">${failureA.billing_state.toUpperCase()}</div>
+                <div class="summary-value ${realityBilling === 'cancelled' ? 'success' : 'danger'}">${realityBilling.toUpperCase()}</div>
             </div>
         </div>
 
