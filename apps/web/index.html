@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Autonomous Reliability Lab — Find the failures your agent doesn't know to test for</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Loading demo report...</p>
+    </div>
+
+    <div id="error" class="error hidden">
+        <h2>Demo Report Unavailable</h2>
+        <p>The demo report could not be loaded.</p>
+        <p>Generate it with:</p>
+        <code>python scripts/generate_demo_report.py</code>
+        <p>Then serve from repository root:</p>
+        <code>python -m http.server</code>
+    </div>
+
+    <div id="app" class="app">
+        <header class="topbar">
+            <div class="topbar-row">
+                <div class="brand"><span class="dot" aria-hidden="true"></span>AUTONOMOUS RELIABILITY LAB</div>
+                <div class="tagline">Find the failures your agent doesn&rsquo;t know to test for.</div>
+                <div class="env" aria-label="Environment status">
+                    <span class="env-pill">NVIDIA NEMOTRON</span>
+                    <span class="env-pill">NEBIUS TOKEN FACTORY</span>
+                    <span class="env-pill live">● RECORDED EXPERIMENT</span>
+                </div>
+            </div>
+            <nav class="tabs" role="tablist" aria-label="Reliability workflow">
+                <button class="tab" role="tab" id="tab-discover" aria-controls="screen-discover" data-screen="discover"><span class="n">01</span>DISCOVER</button>
+                <button class="tab" role="tab" id="tab-explain" aria-controls="screen-explain" data-screen="explain"><span class="n">02</span>EXPLAIN</button>
+                <button class="tab" role="tab" id="tab-repair" aria-controls="screen-repair" data-screen="repair"><span class="n">03</span>REPAIR</button>
+                <button class="tab" role="tab" id="tab-preserve" aria-controls="screen-preserve" data-screen="preserve"><span class="n">04</span>PRESERVE</button>
+                <button class="tab" role="tab" id="tab-validation" aria-controls="screen-validation" data-screen="validation"><span class="n">05</span>VALIDATION</button>
+            </nav>
+            <div class="progressbar" aria-hidden="true"><i id="progressFill"></i></div>
+        </header>
+        <div class="stepmeta">
+            <span id="stepLabel"><strong>SCREEN 1 / 5</strong>&nbsp;&nbsp;DISCOVER — controlled variation sweep</span>
+            <span class="pager-dots" id="dots" aria-label="Screen position"></span>
+            <span style="margin-inline-start:auto">DISCOVER → EXPLAIN → REPAIR → PRESERVE → VALIDATION</span>
+        </div>
+        <main>
+            <section class="screen active" id="screen-discover" role="tabpanel" aria-labelledby="tab-discover" data-title="DISCOVER — controlled variation sweep">
+                <div class="eyebrow">SCREEN 01 · RECORDED EXPERIMENT <span class="src rec">RECORDED REAL EXPERIMENT</span></div>
+                <h1>Discover</h1>
+                <p class="dek">Explore controlled variations of reality and find where the agent breaks.</p>
+                <div class="stats" id="statsRow"></div>
+                <div id="screen0-content"></div>
+            </section>
+            <section class="screen" id="screen-explain" role="tabpanel" aria-labelledby="tab-explain" data-title="EXPLAIN — observation ≠ reality" hidden>
+                <div id="screen1-content"></div>
+            </section>
+            <section class="screen" id="screen-repair" role="tabpanel" aria-labelledby="tab-repair" data-title="REPAIR — fresh evidence, not a hard-coded answer" hidden>
+                <div id="screen2-content"></div>
+            </section>
+            <section class="screen" id="screen-preserve" role="tabpanel" aria-labelledby="tab-preserve" data-title="PRESERVE — unsafe → success, kept as regression" hidden>
+                <div id="screen3-content"></div>
+            </section>
+            <section class="screen" id="screen-validation" role="tabpanel" aria-labelledby="tab-validation" data-title="VALIDATION — live Nemotron counterfactual" hidden>
+                <div id="screen4-content"></div>
+            </section>
+        </main>
+        <footer class="pager">
+            <div class="pager-in">
+                <button class="btn" id="btnPrev">← Previous</button>
+                <button class="btn primary" id="btnNext">Next →</button>
+                <span class="kbd-hint"><kbd>←</kbd> <kbd>→</kbd> navigate &nbsp;·&nbsp; <kbd>Home</kbd> <kbd>End</kbd> &nbsp;·&nbsp; <kbd>Space</kbd> next</span>
+            </div>
+        </footer>
+    </div>
+    <div id="error" class="error hidden">
+        <h2>Demo Report Unavailable</h2>
+        <p>The demo report could not be loaded.</p>
+        <p>Generate it with:</p>
+        <code>python scripts/generate_demo_report.py</code>
+        <p>Then serve from repository root:</p>
+        <code>python -m http.server</code>
+    </div>
+    <script id="report-data" type="application/json"></script>
+    <script src="app.js"></script>
+</body>
+</html>
