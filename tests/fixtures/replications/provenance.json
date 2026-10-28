@@ -1,0 +1,62 @@
+{
+  "provenance_version": 1,
+  "description": "Portable mapping for the historical supplemental replication records. Original metadata values are preserved in each run fixture; this file adds repository-relative references and explains the Trial 1 field-name mismatch.",
+  "source_evidence": {
+    "discovery": "../discovery/discovery10_20260911T002503Z_discovery_2117fc60.json",
+    "original_counterfactual": "../counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json"
+  },
+  "trials": [
+    {
+      "trial_number": 1,
+      "run_id": "scenario_run_17f3fcb1",
+      "recorded_at": "2026-09-17T13:28:57.528986+00:00",
+      "fixture": "replication1_20260917T132857Z_scenario_run_17f3fcb1.json",
+      "recorded_source_paths": {
+        "source_counterfactual_artifact": "artifacts\\live-discovery\\discovery10_20260911T002503Z_discovery_2117fc60.json",
+        "source_discovery_artifact": null
+      },
+      "normalized_source_refs": {
+        "source_discovery": "../discovery/discovery10_20260911T002503Z_discovery_2117fc60.json",
+        "source_counterfactual": "../counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json"
+      },
+      "normalization_note": "The historical source_counterfactual_artifact field contains the discovery path. The replication script's output schema writes source_discovery_artifact and source_counterfactual_artifact separately; this mapping preserves the raw value and records the likely intended source roles without rewriting the run fixture.",
+      "status": "inconclusive",
+      "intervention_reached": false,
+      "model_calls": 0
+    },
+    {
+      "trial_number": 2,
+      "run_id": "scenario_run_74720d0e",
+      "recorded_at": "2026-09-17T15:16:00.137965+00:00",
+      "fixture": "replication2_20260917T151600Z_scenario_run_74720d0e.json",
+      "recorded_source_paths": {
+        "source_discovery_artifact": "artifacts/live-discovery/discovery10_20260911T002503Z_discovery_2117fc60.json",
+        "source_counterfactual_artifact": "artifacts/live-counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json"
+      },
+      "normalized_source_refs": {
+        "source_discovery": "../discovery/discovery10_20260911T002503Z_discovery_2117fc60.json",
+        "source_counterfactual": "../counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json"
+      },
+      "status": "inconclusive",
+      "intervention_reached": false,
+      "model_calls": 1
+    },
+    {
+      "trial_number": 3,
+      "run_id": "scenario_run_ccb5483b",
+      "recorded_at": "2026-09-17T15:29:03.730178+00:00",
+      "fixture": "replication3_20260917T152903Z_scenario_run_ccb5483b.json",
+      "recorded_source_paths": {
+        "source_discovery_artifact": "artifacts\\live-discovery\\discovery10_20260911T002503Z_discovery_2117fc60.json",
+        "source_counterfactual_artifact": "artifacts/live-counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json"
+      },
+      "normalized_source_refs": {
+        "source_discovery": "../discovery/discovery10_20260911T002503Z_discovery_2117fc60.json",
+        "source_counterfactual": "../counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json"
+      },
+      "status": "inconclusive",
+      "intervention_reached": false,
+      "model_calls": 1
+    }
+  ]
+}

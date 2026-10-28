@@ -24,7 +24,7 @@ from packages.agent.models import ToolErrorCode
 
 def load_artifact() -> dict:
     """Load the real discovery artifact."""
-    artifact_path = Path(__file__).resolve().parents[1] / "artifacts" / "live-discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
+    artifact_path = Path(__file__).resolve().parent / "fixtures" / "discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
     with artifact_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -239,7 +239,7 @@ def main():
     print_analysis(analysis_b, "FAILURE B")
     
     # Save analyses for reference
-    output_dir = Path(__file__).resolve().parents[1] / "tests" / "analysis_outputs"
+    output_dir = Path(__file__).resolve().parents[1] / "reports" / "analysis_outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     with (output_dir / "failure_a_analysis.json").open("w") as f:

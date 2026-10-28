@@ -1,0 +1,5 @@
+# Minimal project and offline-test dependencies (not a machine-wide freeze).
+pytest>=8,<10
+PyYAML>=6,<7
+openai>=1,<4
+python-dotenv>=1,<2

@@ -33,7 +33,7 @@ from packages.environment.models import DeterministicIdProvider, DeterministicCl
 
 def load_artifact() -> dict:
     """Load the real discovery artifact."""
-    artifact_path = Path(__file__).resolve().parents[1] / "artifacts" / "live-discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
+    artifact_path = Path(__file__).resolve().parent / "fixtures" / "discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
     with artifact_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -286,7 +286,7 @@ def reconstruct_scenario_from_artifact(artifact: dict, candidate_id: str) -> Sce
                 description="Billing becomes cancelled at step 4 before cancellation attempt",
                 task=AgentTask(
                     task_id=task_id,
-                    goal="Process Maya's subscription cancellation.",
+                goal="Process the customer's subscription cancellation.",
                 ),
                 perturbations=tuple(perturbations),
             )
@@ -329,8 +329,8 @@ class TestExactStartingStateReconstruction:
         
         customer = starting_state.customers["cust_bcdfbba2"]
         assert customer.id == "cust_bcdfbba2"
-        assert customer.name == "Maya"
-        assert customer.email == "maya@example.com"
+        assert customer.name == "Simulated Customer"
+        assert customer.email == "customer@example.com"
     
     def test_reconstructed_subscription_id_identical(self):
         """B. Reconstructed subscription ID matches artifact exactly."""

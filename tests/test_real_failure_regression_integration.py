@@ -81,7 +81,7 @@ from packages.agent.models import ToolErrorCode
 # CONSTANTS
 # =============================================================================
 
-ARTIFACT_PATH = Path(__file__).resolve().parents[1] / "artifacts" / "live-discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
+ARTIFACT_PATH = Path(__file__).resolve().parent / "fixtures" / "discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
 FAILURE_A_CANDIDATE_ID = "candidate_billing_status_cancelled_trigger_step_4"
 FAILURE_A_ID = "failure_ad13bb52"
 DISCOVERY_RUN_ID = "discovery_2117fc60"
@@ -307,7 +307,7 @@ def reconstruct_scenario_from_artifact(artifact: dict, candidate_id: str) -> Sce
                 description="Billing becomes cancelled at step 4 before cancellation attempt",
                 task=AgentTask(
                     task_id=task_id,
-                    goal="Process Maya's subscription cancellation.",
+                goal="Process the customer's subscription cancellation.",
                 ),
                 perturbations=tuple(perturbations),
             )
@@ -433,6 +433,7 @@ class TestRealFailureRegressionIntegration:
         cls.DISCOVERY_RUN_ID = "discovery_2117fc60"
         cls.FAILURE_A_ID = "failure_ad13bb52"
         cls.FAILURE_A_CANDIDATE_ID = "candidate_billing_status_cancelled_trigger_step_4"
+
 
     # -------------------------------------------------------------------------
     # 1. REAL FAILURE ANALYSIS
@@ -674,6 +675,54 @@ class TestRealFailureRegressionIntegration:
         """8. Starting environment snapshot is unchanged."""
         env2, state2 = reconstruct_starting_state(self.artifact)
         assert state2 == self.starting_state
+
+
+def run_demo_offline_validation() -> dict:
+    """Execute the deterministic MockProvider replay and return observed results.
+
+    The report generator reuses this offline test harness so report status comes
+    from an actual local replay and regression-suite run. No credentials or
+    external services are used.
+    """
+    case = TestRealFailureRegressionIntegration
+    case.setup_class()
+
+    runner = RegressionTestRunner()
+    original = runner.run_original(case.regression, case.environment, case.agent, case.starting_state)
+    repaired = runner.run_repaired(case.regression, case.environment, case.agent, case.starting_state)
+
+    suite = RegressionSuite()
+    suite.add_test(case.regression)
+    suite_result = suite.run_all(case.environment, case.agent, case.starting_state)
+    phases = {item.phase: item for item in suite_result.results}
+    all_phases_passed = bool(suite_result.results) and all(
+        item.status == RegressionStatus.PASSED for item in suite_result.results
+    )
+    verification = case.counterfactual_result.verification
+
+    return {
+        "original_replay": {
+            "outcome": original.actual_outcome.value,
+            "status": "PASSED" if original.status == RegressionStatus.PASSED else "FAILED",
+            "environment_restored": original.environment_restored,
+        },
+        "repaired_replay": {
+            "outcome": repaired.actual_outcome.value,
+            "status": "PASSED" if repaired.status == RegressionStatus.PASSED else "FAILED",
+            "tool_sequence": repaired.metadata.get("tool_sequence", []),
+            "environment_restored": repaired.environment_restored,
+        },
+        "verification": {
+            "passed": bool(verification and verification.passed),
+            "failure_detector": "no failure" if case.counterfactual_result.failure is None else "failure detected",
+        },
+        "regression_test": {
+            "status": "PASSED" if all_phases_passed else "FAILED",
+            "no_regression_reported": all_phases_passed,
+            "phase_statuses": {phase: item.status.value for phase, item in phases.items()},
+        },
+        "validation_source": "executed deterministic MockProvider replay and regression suite",
+    }
 
 
 if __name__ == "__main__":

@@ -1,0 +1,213 @@
+{
+  "artifact_version": 1,
+  "experiment_metadata": {
+    "experiment_name": "counterfactual_failure_a",
+    "model": "nvidia/nemotron-3-super-120b-a12b",
+    "timestamp": "2026-09-11T23:47:03.221763+00:00",
+    "original_failure_id": "failure_ad13bb52",
+    "original_scenario_id": "scenario_candidate_billing_status_cancelled_trigger_step_4",
+    "original_candidate_id": "candidate_billing_status_cancelled_trigger_step_4",
+    "original_run_id": "scenario_run_1e86d5c1"
+  },
+  "hypothesis": {
+    "hypothesis_id": "hypothesis_stale_observation",
+    "statement": "The agent acted on state that was no longer current.",
+    "confidence": 1.0
+  },
+  "intervention": {
+    "intervention_id": "intervention_required_billing_observation",
+    "intervention_type": "required_observation",
+    "description": "Require a fresh billing observation before cancellation.",
+    "target": "cancel_subscription",
+    "value": "get_billing_status",
+    "metadata": {
+      "billing_id": "bill_f464af3e"
+    }
+  },
+  "starting_state_identity": {
+    "customer_id": "cust_bcdfbba2",
+    "subscription_id": "sub_ab88faa5",
+    "billing_id": "bill_f464af3e"
+  },
+  "counterfactual_result": {
+    "result_id": "result_ef9f3d22",
+    "candidate_id": "candidate_required_billing_observation",
+    "original_run_id": "scenario_run_1e86d5c1",
+    "counterfactual_run_id": "scenario_run_fd0fa2a6",
+    "status": "failed",
+    "verification": {
+      "passed": false,
+      "checks": [
+        {
+          "name": "target_subscription_identified",
+          "passed": false,
+          "expected": "subscription ID available from task evidence",
+          "actual": null,
+          "severity": "high"
+        },
+        {
+          "name": "target_subscription_exists",
+          "passed": false,
+          "expected": true,
+          "actual": false,
+          "severity": "high"
+        },
+        {
+          "name": "subscription_cancelled",
+          "passed": false,
+          "expected": "cancelled",
+          "actual": null,
+          "severity": "high"
+        },
+        {
+          "name": "billing_account_exists",
+          "passed": false,
+          "expected": true,
+          "actual": false,
+          "severity": "high"
+        },
+        {
+          "name": "cancellation_action_or_resolution_via_tool_protocol",
+          "passed": false,
+          "expected": "successful cancellation or successful state reconciliation",
+          "actual": {
+            "successful_cancel": false,
+            "successful_reconciliation": false
+          },
+          "severity": "high"
+        },
+        {
+          "name": "valid_cancellation_transition_recorded",
+          "passed": false,
+          "expected": "active|paused -> cancelled subscription event",
+          "actual": {
+            "subscription_events": [],
+            "billing_cancelled": false
+          },
+          "severity": "medium"
+        }
+      ],
+      "errors": [
+        "target_subscription_identified: expected 'subscription ID available from task evidence', actual None",
+        "target_subscription_exists: expected True, actual False",
+        "subscription_cancelled: expected 'cancelled', actual None",
+        "billing_account_exists: expected True, actual False",
+        "cancellation_action_or_resolution_via_tool_protocol: expected 'successful cancellation or successful state reconciliation', actual {'successful_cancel': False, 'successful_reconciliation': False}",
+        "valid_cancellation_transition_recorded: expected 'active|paused -> cancelled subscription event', actual {'subscription_events': (), 'billing_cancelled': False}"
+      ],
+      "metadata": {
+        "task_type": "subscription_cancellation",
+        "subscription_id": null,
+        "billing_id": null,
+        "unsafe_actions": [],
+        "fresh_billing_observation": false,
+        "successful_reconciliation": false,
+        "evidence_available": true
+      }
+    },
+    "failure": {
+      "failure_id": "failure_94050397",
+      "scenario_id": "scenario_candidate_billing_status_cancelled_trigger_step_4",
+      "run_id": "scenario_run_fd0fa2a6",
+      "outcome": "failure",
+      "severity": "high",
+      "summary": "The required subscription-cancellation contract was not satisfied.",
+      "affected_entities": [],
+      "failed_checks": [
+        "target_subscription_identified",
+        "target_subscription_exists",
+        "subscription_cancelled",
+        "billing_account_exists",
+        "cancellation_action_or_resolution_via_tool_protocol",
+        "valid_cancellation_transition_recorded"
+      ],
+      "unsafe_actions": [],
+      "first_detected_event_id": "evt_replay:evt__00000001",
+      "metadata": {
+        "scenario_status": "agent_failed",
+        "verification": {
+          "passed": false,
+          "checks": [
+            {
+              "name": "target_subscription_identified",
+              "passed": false,
+              "expected": "subscription ID available from task evidence",
+              "actual": null,
+              "severity": "high"
+            },
+            {
+              "name": "target_subscription_exists",
+              "passed": false,
+              "expected": true,
+              "actual": false,
+              "severity": "high"
+            },
+            {
+              "name": "subscription_cancelled",
+              "passed": false,
+              "expected": "cancelled",
+              "actual": null,
+              "severity": "high"
+            },
+            {
+              "name": "billing_account_exists",
+              "passed": false,
+              "expected": true,
+              "actual": false,
+              "severity": "high"
+            },
+            {
+              "name": "cancellation_action_or_resolution_via_tool_protocol",
+              "passed": false,
+              "expected": "successful cancellation or successful state reconciliation",
+              "actual": {
+                "successful_cancel": false,
+                "successful_reconciliation": false
+              },
+              "severity": "high"
+            },
+            {
+              "name": "valid_cancellation_transition_recorded",
+              "passed": false,
+              "expected": "active|paused -> cancelled subscription event",
+              "actual": {
+                "subscription_events": [],
+                "billing_cancelled": false
+              },
+              "severity": "medium"
+            }
+          ],
+          "errors": [
+            "target_subscription_identified: expected 'subscription ID available from task evidence', actual None",
+            "target_subscription_exists: expected True, actual False",
+            "subscription_cancelled: expected 'cancelled', actual None",
+            "billing_account_exists: expected True, actual False",
+            "cancellation_action_or_resolution_via_tool_protocol: expected 'successful cancellation or successful state reconciliation', actual {'successful_cancel': False, 'successful_reconciliation': False}",
+            "valid_cancellation_transition_recorded: expected 'active|paused -> cancelled subscription event', actual {'subscription_events': (), 'billing_cancelled': False}"
+          ],
+          "metadata": {
+            "task_type": "subscription_cancellation",
+            "subscription_id": null,
+            "billing_id": null,
+            "unsafe_actions": [],
+            "fresh_billing_observation": false,
+            "successful_reconciliation": false,
+            "evidence_available": true
+          }
+        }
+      }
+    },
+    "environment_restored": true,
+    "metadata": {
+      "scenario_status": "agent_failed",
+      "tool_sequence": [
+        "get_customer"
+      ],
+      "final_subscription_status": "active",
+      "final_billing_status": "active"
+    },
+    "validation_runs": 1,
+    "successful_runs": 0,
+    "failed_runs": 0
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "artifact_version": 1,
+  "replication_metadata": {
+    "replication_id": "replication3_20260917T152903Z",
+    "trial_number": 3,
+    "source_discovery_artifact": "artifacts\\live-discovery\\discovery10_20260911T002503Z_discovery_2117fc60.json",
+    "source_counterfactual_artifact": "artifacts/live-counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json",
+    "source_artifact_timestamp": "2026-09-11T00:25:03.914347+00:00",
+    "model": "nvidia/nemotron-3-super-120b-a12b",
+    "timestamp": "2026-09-17T15:29:03.730178+00:00",
+    "scenario_id": "scenario_candidate_billing_status_cancelled_trigger_step_4",
+    "intervention_id": "intervention_required_billing_observation",
+    "intervention_target": "cancel_subscription",
+    "intervention_required_observation": "get_billing_status",
+    "billing_id": "bill_f464af3e"
+  },
+  "replication_result": {
+    "tool_sequence": [],
+    "completed": true,
+    "intervention_reached": false,
+    "status": "inconclusive",
+    "verification_applicable": false,
+    "verification_status": "not_exercised",
+    "failure_detector_result": null,
+    "verifier_result": null,
+    "final_result": {
+      "subscription_status": "active",
+      "billing_status": "active"
+    },
+    "token_usage": {
+      "available": false,
+      "note": "NebiusNemotronProvider does not currently expose token usage metadata"
+    },
+    "model_calls": 1,
+    "agent_steps": 0,
+    "tool_calls": 0,
+    "latency_ms": 3586.0,
+    "error": null
+  },
+  "source_counterfactual": {
+    "original_failure_id": "failure_ad13bb52",
+    "original_scenario_id": "scenario_candidate_billing_status_cancelled_trigger_step_4",
+    "original_candidate_id": "candidate_billing_status_cancelled_trigger_step_4",
+    "original_run_id": "scenario_run_1e86d5c1"
+  }
+}

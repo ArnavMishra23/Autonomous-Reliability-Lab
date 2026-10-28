@@ -221,6 +221,10 @@
     const explanationA = reportData.explanations.find(e => e.failure === 'A');
     const failureB = reportData.failures.find(f => f.id === 'B');
     const explanationB = reportData.explanations.find(e => e.failure === 'B');
+    const observedBilling = explanationA?.observation?.split('=').pop()?.trim() || 'active';
+    const realityBilling = failureA?.billing_state || 'cancelled';
+    const hypothesisA = explanationA?.hypothesis?.replace(/^hypothesis_/, '') || 'stale_observation';
+    const hypothesisB = explanationB?.hypothesis?.replace(/^hypothesis_/, '') || 'redundant_action';
 
     // Build evidence chain from the report data
     const evidence = reportData.explanations.find(e => e.failure === 'A')?.sequence || [
@@ -246,20 +250,20 @@
         <div class="twotrack">
             <div class="track agent">
                 <div class="t">AGENT OBSERVATION · WHAT IT SAW</div>
-                <div class="big">billing = ACTIVE</div>
-                <div class="note">observed at plan time, never re-checked</div>
+                <div class="big">billing = ${observedBilling.toUpperCase()}</div>
+                <div class="note">recorded before the step-four state change</div>
             </div>
             <div class="track reality">
                 <div class="t">ENVIRONMENT REALITY · WHAT CHANGED</div>
-                <div class="big">billing = CANCELLED</div>
+                <div class="big">billing = ${realityBilling.toUpperCase()}</div>
                 <div class="note">changed at agent step 4</div>
             </div>
         </div>
         <div class="vs">▲ CONTRADICTION — DIVERGENCE POINT ▲</div>
         <div class="chain" id="evidenceChain">${evidenceHtml}</div>
         <div class="hyp">
-            <div><div class="panel-h" style="margin:0">CAUSAL HYPOTHESIS</div><div class="mono" style="font-size:14px;font-weight:700" id="hypVal">stale_observation</div></div>
-            <div class="cov"><div class="panel-h" style="margin:0">EVIDENCE COVERAGE · NOT PROBABILITY</div><b id="covVal">1.0</b><div class="note">full visibility into the contradiction</div></div>
+            <div><div class="panel-h" style="margin:0">CAUSAL HYPOTHESIS</div><div class="mono" style="font-size:14px;font-weight:700" id="hypVal">${hypothesisA}</div></div>
+            <div class="cov"><div class="panel-h" style="margin:0">RECORDED ANALYZER CONFIDENCE · NOT PROBABILITY</div><b id="covVal">${explanationA?.confidence ?? 'not recorded'}</b></div>
         </div>
 
         <div class="section-gap"></div>
@@ -279,8 +283,8 @@
         </div>
 
         <div class="hyp">
-            <div><div class="panel-h" style="margin:0">CAUSAL HYPOTHESIS</div><div class="mono" style="font-size:14px;font-weight:700" id="hypVal2">redundant_action</div></div>
-            <div class="cov"><div class="panel-h" style="margin:0">EVIDENCE COVERAGE · NOT PROBABILITY</div><b id="covVal2">1.0</b><div class="note">full visibility into the contradiction</div></div>
+            <div><div class="panel-h" style="margin:0">CAUSAL HYPOTHESIS</div><div class="mono" style="font-size:14px;font-weight:700" id="hypVal2">${hypothesisB}</div></div>
+            <div class="cov"><div class="panel-h" style="margin:0">RECORDED ANALYZER CONFIDENCE · NOT PROBABILITY</div><b id="covVal2">${explanationB?.confidence ?? 'not recorded'}</b></div>
         </div>
     `;
   }
@@ -450,10 +454,15 @@
 
     screen4Content.innerHTML = `
         <div class="evidence-card" style="margin-bottom: 1.5rem; background: var(--warn-dim); border-color: rgba(253, 176, 34, .5);">
-            <div class="evidence-label">Real Nemotron Counterfactual</div>
+            <div class="evidence-label">Evidence-Derived Interpretation</div>
             <div class="evidence-value">
                 <span class="status-badge inconclusive">${lc?.status || 'INCONCLUSIVE'}</span>
             </div>
+        </div>
+
+        <div class="evidence-card" style="margin-bottom: 1.5rem;">
+            <div class="evidence-label">Recorded Source Status</div>
+            <div class="evidence-value mono">${lc?.recorded_status || 'unknown'} / ${lc?.recorded_scenario_status || 'unknown'}</div>
         </div>
 
         <div class="evidence-card" style="margin-bottom: 1.5rem;">
@@ -467,7 +476,7 @@
         </div>
 
         <div class="evidence-card" style="margin-bottom: 1.5rem;">
-            <div class="evidence-label">Intervention Reached</div>
+            <div class="evidence-label">Intervention Reached (derived from trace)</div>
             <div class="evidence-value">
                 <span class="status-badge inconclusive">
                     ${lc?.intervention_reached ? 'Yes' : 'No'}

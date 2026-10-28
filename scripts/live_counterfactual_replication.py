@@ -64,7 +64,7 @@ from packages.agent.models import ToolErrorCode
 from packages.analysis import CausalAnalysis
 
 # Experiment configuration
-SOURCE_ARTIFACT_PATH = _REPO_ROOT / "artifacts" / "live-discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
+SOURCE_ARTIFACT_PATH = _REPO_ROOT / "tests" / "fixtures" / "discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json"
 FAILURE_A_CANDIDATE_ID = "candidate_billing_status_cancelled_trigger_step_4"
 EXPECTED_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
@@ -334,7 +334,7 @@ def main() -> int:
     base_url = os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/")
 
     print("=" * 70)
-    print("LIVE COUNTERFACTUAL REPLICATION - FAILURE A (Trial 1)")
+    print("LIVE COUNTERFACTUAL REPLICATION - FAILURE A (Trial 3)")
     print("=" * 70)
     print(f"  Model: {model}")
     print(f"  Source Artifact: {SOURCE_ARTIFACT_PATH.name}")
@@ -435,7 +435,7 @@ def main() -> int:
 
     # 8. Print results
     print("\n" + "=" * 70)
-    print("REPLICATION COUNTERFACTUAL RESULT (Trial 1)")
+    print("REPLICATION COUNTERFACTUAL RESULT (Trial 3)")
     print("=" * 70)
     print(f"  Status: {result.status.value}")
     print(f"  Counterfactual Run ID: {result.counterfactual_run_id}")
@@ -492,8 +492,8 @@ def main() -> int:
 
     print(f"  Final Status: {final_status}")
     print(f"  Verdict: {verdict}")
-    print("\nNOTE: This is Trial 1 of a planned replication study.")
-    print("      Do NOT interpret as proof from a single replication.")
+    print("\nNOTE: This is Trial 3, a supplemental run of the same setup.")
+    print("      Do NOT interpret this run as statistical proof.")
 
     # 10. Persist replication artifact
     print("\n9. Persisting replication artifact...")
@@ -501,7 +501,7 @@ def main() -> int:
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_id = result.counterfactual_run_id or "unknown"
-    filename = f"replication1_{timestamp}_{run_id}.json"
+    filename = f"replication3_{timestamp}_{run_id}.json"
     artifact_path = REPLICATION_ARTIFACT_DIR / filename
 
     # Extract token usage if available from provider
@@ -515,10 +515,10 @@ def main() -> int:
     replication_artifact = {
         "artifact_version": 1,
         "replication_metadata": {
-            "replication_id": f"replication1_{timestamp}",
-            "trial_number": 1,
+            "replication_id": f"replication3_{timestamp}",
+            "trial_number": 3,
             "source_discovery_artifact": str(SOURCE_ARTIFACT_PATH.relative_to(_REPO_ROOT)),
-            "source_counterfactual_artifact": "artifacts/live-counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json",
+            "source_counterfactual_artifact": "tests/fixtures/counterfactual/counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json",
             "source_artifact_timestamp": artifact['experiment_metadata']['timestamp'],
             "model": model,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -571,12 +571,12 @@ def main() -> int:
 
     # Final verdict
     print("\n" + "=" * 70)
-    print("REPLICATION VERDICT (Trial 1)")
+    print("REPLICATION VERDICT (Trial 3)")
     print("=" * 70)
     print(f"  Final Status: {final_status}")
     print(f"  Verdict: {verdict}")
-    print("\nNOTE: This is Trial 1 of a planned replication study.")
-    print("      Do NOT interpret as proof from a single replication.")
+    print("\nNOTE: This is Trial 3, a supplemental run of the same setup.")
+    print("      The run is inconclusive if the intervention was not reached.")
 
     return 0 if result.status == CounterfactualStatus.VALIDATED else 0  # Always return 0 for experiment
 

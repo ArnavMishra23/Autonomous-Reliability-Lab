@@ -1,209 +1,154 @@
-"""Tests for the demo report generator."""
+"""Fixture-backed tests for the deterministic demo report."""
 
 import json
+import re
 import sys
+import tempfile
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT))
 
-# Load the generated reports
-REPORTS_DIR = Path(__file__).resolve().parents[1] / "reports"
-MARKDOWN_OUTPUT = REPORTS_DIR / "autonomous_reliability_report.md"
-JSON_OUTPUT = REPORTS_DIR / "autonomous_reliability_report.json"
-
-
-def load_json_report() -> dict:
-    with JSON_OUTPUT.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def load_markdown_report() -> str:
-    with MARKDOWN_OUTPUT.open("r", encoding="utf-8") as f:
-        return f.read()
+from scripts.generate_demo_report import generate_reports, load_json
 
 
 class TestDemoReport:
-    """Tests for the generated demo report."""
+    """Generate reports into a temporary directory; never require ignored output."""
 
-    def setup_method(self):
-        self.json_report = load_json_report()
-        self.markdown_report = load_markdown_report()
+    @classmethod
+    def setup_class(cls):
+        cls._temp_dir = tempfile.TemporaryDirectory(prefix="arl-report-test-")
+        cls.markdown_path, cls.json_path = generate_reports(Path(cls._temp_dir.name))
+        cls.json_report = json.loads(cls.json_path.read_text(encoding="utf-8"))
+        cls.markdown_report = cls.markdown_path.read_text(encoding="utf-8")
 
-    # 1. report loads the existing discovery artifact
-    def test_report_loads_discovery_artifact(self):
-        """1. Report loads the existing discovery artifact."""
-        # The report generation itself tests this - if it ran, artifact was loaded
-        assert "experiment" in self.json_report
+    @classmethod
+    def teardown_class(cls):
+        cls._temp_dir.cleanup()
+
+    def test_report_loads_committed_discovery_fixture(self):
         assert self.json_report["experiment"]["name"] == "discovery10"
         assert self.json_report["experiment"]["discovery_run_id"] == "discovery_2117fc60"
+        assert self.json_report["experiment"]["scenarios_evaluated"] == 10
+        assert self.json_report["experiment"]["outcome_counts"] == {
+            "success": 8, "unsafe_action": 1, "degraded": 1
+        }
 
-    # 2. Failure A is present
-    def test_failure_a_present(self):
-        """2. Failure A is present in the report."""
-        failures = self.json_report.get("failures", [])
-        failure_a = next((f for f in failures if f["id"] == "A"), None)
-        assert failure_a is not None
-        assert failure_a["candidate_id"] == "candidate_billing_status_cancelled_trigger_step_4"
-        assert failure_a["outcome"] == "unsafe_action"
-        assert failure_a["failure_id"] == "failure_ad13bb52"
+    def test_failure_a_is_derived_from_discovery_and_analysis(self):
+        failure = next(item for item in self.json_report["failures"] if item["id"] == "A")
+        explanation = next(item for item in self.json_report["explanations"] if item["failure"] == "A")
+        assert failure["outcome"] == "unsafe_action"
+        assert failure["failure_id"] == "failure_ad13bb52"
+        assert explanation["hypothesis"] == "hypothesis_stale_observation"
+        assert explanation["confidence"] == 1.0
+        assert explanation["observation"] == "billing = active"
+        assert explanation["result"] == "billing_account_already_cancelled"
 
-    # 3. Failure B is present
-    def test_failure_b_present(self):
-        """3. Failure B is present in the report."""
-        failures = self.json_report.get("failures", [])
-        failure_b = next((f for f in failures if f["id"] == "B"), None)
-        assert failure_b is not None
-        assert failure_b["candidate_id"] == "candidate_billing_status_active_trigger_step_4"
-        assert failure_b["outcome"] == "degraded"
-        assert failure_b["failure_id"] == "failure_56fa2250"
+    def test_failure_b_error_matches_recorded_second_call(self):
+        failure = next(item for item in self.json_report["failures"] if item["id"] == "B")
+        explanation = next(item for item in self.json_report["explanations"] if item["failure"] == "B")
+        assert failure["outcome"] == "degraded"
+        assert failure["failure_id"] == "failure_56fa2250"
+        assert failure["second_cancel_error_code"] == "invalid_arguments"
+        assert explanation["hypothesis"] == "hypothesis_redundant_action"
+        assert explanation["confidence"] == 1.0
+        assert explanation["classification_note"] == "causal hypothesis, not proof"
+        assert "invalid_arguments" in explanation["sequence"][-1]
 
-    # 4. stale_observation is represented correctly
-    def test_stale_observation_represented_correctly(self):
-        """4. stale_observation is represented correctly for Failure A."""
-        explanations = self.json_report.get("explanations", [])
-        exp_a = next((e for e in explanations if e["failure"] == "A"), None)
-        assert exp_a is not None
-        assert exp_a["hypothesis"] == "hypothesis_stale_observation"
-        assert exp_a["confidence"] == 1.0
-        assert exp_a["observation"] == "billing = active"
-        assert exp_a["reality_change"] == "billing active → cancelled"
-        assert exp_a["action"] == "cancel_subscription"
-        assert exp_a["result"] == "billing_account_already_cancelled"
+    def test_offline_status_comes_from_executed_mock_replay(self):
+        validation = self.json_report["offline_validation"]
+        assert validation["status"] == "PASSED"
+        assert validation["original_replay"]["outcome"] == "unsafe_action"
+        assert validation["repaired_replay"]["outcome"] == "success"
+        assert validation["verification"]["passed"] is True
+        assert validation["regression_test"]["status"] == "PASSED"
+        assert validation["validation_source"].startswith("executed deterministic MockProvider")
 
-    # 5. redundant_action is represented correctly
-    def test_redundant_action_represented_correctly(self):
-        """5. redundant_action is represented correctly for Failure B."""
-        explanations = self.json_report.get("explanations", [])
-        exp_b = next((e for e in explanations if e["failure"] == "B"), None)
-        assert exp_b is not None
-        assert exp_b["hypothesis"] == "hypothesis_redundant_action"
-        assert exp_b["confidence"] == 1.0
-        assert "Successful cancellation" in exp_b["sequence"][0]
-        assert "already-cancelled" in exp_b["sequence"][-1]
+    def test_live_counterfactual_separates_raw_status_and_interpretation(self):
+        live = self.json_report["live_counterfactual"]
+        assert live["recorded_status"] == "failed"
+        assert live["recorded_scenario_status"] == "agent_failed"
+        assert live["status"] == live["interpretation"] == "INCONCLUSIVE"
+        assert live["tool_sequence"] == ["get_customer"]
+        assert live["intervention_reached"] is False
+        assert live["source_has_intervention_reached_field"] is False
+        assert live["evidence_basis"]["required_observation_in_trace"] is False
 
-    # 6. offline validation is represented as successful
-    def test_offline_validation_represented_as_successful(self):
-        """6. Offline validation is represented as successful."""
-        ov = self.json_report.get("offline_validation", {})
-        assert ov["original_replay"]["outcome"] == "unsafe_action"
-        assert ov["original_replay"]["status"] == "PASSED"
-        assert ov["repaired_replay"]["outcome"] == "success"
-        assert ov["repaired_replay"]["status"] == "PASSED"
-        assert ov["verification"]["passed"] is True
-        assert ov["verification"]["failure_detector"] == "no failure"
-        assert ov["regression_test"]["status"] == "PASSED"
-        assert ov["regression_test"]["no_regression_reported"] is True
+    def test_provenance_is_preserved(self):
+        provenance = self.json_report["regression"]["provenance"]
+        assert provenance["discovery_run_id"] == "discovery_2117fc60"
+        assert provenance["failure_id"] == "failure_ad13bb52"
+        assert provenance["analysis_id"] == "analysis_18ab0170"
+        assert provenance["counterfactual_result_id"] == "result_ef9f3d22"
+        assert provenance["intervention_id"] == "intervention_required_billing_observation"
 
-    # 7. live counterfactual is represented as INCONCLUSIVE
-    def test_live_counterfactual_inconclusive(self):
-        """7. Live counterfactual is represented as INCONCLUSIVE."""
-        lc = self.json_report.get("live_counterfactual", {})
-        assert lc["status"] == "INCONCLUSIVE"
-        assert lc["reason"] == "Intervention not reached"
-        assert lc["intervention_reached"] is False
-        assert lc["tool_sequence"] == ["get_customer"]
+    def test_markdown_and_json_agree_on_live_result_and_failure_b(self):
+        assert "Recorded status:** failed (`agent_failed`)" in self.markdown_report
+        assert "Evidence-derived interpretation:** INCONCLUSIVE" in self.markdown_report
+        assert "Second cancellation error code:** invalid_arguments" in self.markdown_report
+        assert self.json_report["live_counterfactual"]["status"] in self.markdown_report
+        assert "already-cancelled" not in self.markdown_report
 
-    # 8. regression preservation is represented
-    def test_regression_preservation_represented(self):
-        """8. Regression preservation is represented."""
-        reg = self.json_report.get("regression", {})
-        assert reg["generated"] is True
-        assert reg["original_expectation"] == "unsafe_action"
-        assert reg["repaired_expectation"] == "success"
-        prov = reg["provenance"]
-        assert prov["discovery_run_id"] == "discovery_2117fc60"
-        assert prov["scenario_id"] == "scenario_candidate_billing_status_cancelled_trigger_step_4"
-        assert prov["failure_id"] == "failure_ad13bb52"
-        assert prov["analysis_id"] == "analysis_18ab0170"
-        assert prov["counterfactual_result_id"] == "result_ef9f3d22"
-        assert prov["intervention_id"] == "intervention_required_billing_observation"
+    def test_report_schema_is_ui_compatible(self):
+        for field in ("project", "experiment", "model", "discovery", "failures", "explanations",
+                      "repair", "offline_validation", "live_counterfactual", "regression", "limitations"):
+            assert field in self.json_report
+        assert len(self.json_report["failures"]) == 2
+        assert len(self.json_report["explanations"]) == 2
 
-    # 9. Markdown report is generated
-    def test_markdown_report_generated(self):
-        """9. Markdown report is generated and readable."""
-        assert len(self.markdown_report) > 0
-        assert "# Autonomous Reliability Lab" in self.markdown_report
-        assert "Failure A" in self.markdown_report
-        assert "Failure B" in self.markdown_report
-        assert "STALE OBSERVATION" in self.markdown_report.upper()
-        assert "REDUNDANT ACTION" in self.markdown_report.upper()
-        # The live counterfactual artifact shows "failed" status, but the report
-        # should note it was INCONCLUSIVE (intervention not reached)
-        assert "FAILED" in self.markdown_report or "INCONCLUSIVE" in self.markdown_report
-        assert "REPAIR" in self.markdown_report
+    def test_supplemental_fixtures_match_documented_inconclusive_runs(self):
+        fixture_dir = _REPO_ROOT / "tests" / "fixtures" / "replications"
+        provenance = json.loads((fixture_dir / "provenance.json").read_text(encoding="utf-8"))
+        expected_calls = [0, 1, 1]
+        for trial, expected_model_calls in enumerate(expected_calls, start=1):
+            path = next(fixture_dir.glob(f"replication{trial}_*.json"))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            result = data["replication_result"]
+            mapping = next(item for item in provenance["trials"] if item["trial_number"] == trial)
+            assert data["replication_metadata"]["trial_number"] == trial
+            assert result["status"] == "inconclusive"
+            assert result["intervention_reached"] is False
+            assert result["model_calls"] == expected_model_calls
+            assert mapping["fixture"] == path.name
+            assert mapping["status"] == result["status"]
+            assert mapping["model_calls"] == result["model_calls"]
+            for reference in mapping["normalized_source_refs"].values():
+                assert (fixture_dir / reference).is_file()
 
-    # 10. JSON report is generated
-    def test_json_report_generated(self):
-        """10. JSON report is generated and valid."""
-        # Already validated by loading
-        assert isinstance(self.json_report, dict)
-        assert "project" in self.json_report
-        assert "experiment" in self.json_report
-        assert "model" in self.json_report
-        assert "failures" in self.json_report
-        assert "explanations" in self.json_report
-        assert "repair" in self.json_report
-        assert "offline_validation" in self.json_report
-        assert "live_counterfactual" in self.json_report
-        assert "regression" in self.json_report
-        assert "limitations" in self.json_report
+        trial_one = provenance["trials"][0]
+        assert "live-discovery" in trial_one["recorded_source_paths"]["source_counterfactual_artifact"]
+        assert "discovery path" in trial_one["normalization_note"]
 
-    # 11. JSON is valid (already tested by loading)
-    def test_json_is_valid(self):
-        """11. JSON report is valid (already tested by loading)."""
-        # If we got here, json.loads succeeded
-        pass
-
-    # 12. Output contains no secret-like fields/values
-    def test_no_secrets_in_output(self):
-        """12. Output contains no secret-like fields/values."""
-        report_text = json.dumps(self.json_report)
-        # Check for common secret patterns (not substrings of legitimate fields)
-        assert "api_key" not in report_text.lower()
-        assert "apikey" not in report_text.lower()
-        assert "secret" not in report_text.lower()
-        assert "password" not in report_text.lower()
-        # "token" appears in "discovery_run_id" which is a legitimate field name, not a secret
-        # assert "token" not in report_text.lower()  # Would false-positive on discovery_run_id
-        assert "password" not in report_text.lower()
-        assert "authorization" not in report_text.lower()
-        assert "bearer" not in report_text.lower()
-
-    # 13. Generation is deterministic for fixed artifacts
-    def test_generation_deterministic(self):
-        """13. Generation is deterministic for fixed artifacts."""
-        # Re-run generation and compare
-        from scripts.generate_demo_report import (
-            load_json, extract_failure_a, extract_failure_b,
-            extract_offline_validation_result, build_json_report,
-            build_markdown_report
+    def test_no_credentials_or_synthetic_secret_sentinels_in_report_output(self):
+        """Both report formats must not expose credential-shaped data."""
+        report_text = json.dumps(self.json_report, ensure_ascii=False) + "\n" + self.markdown_report
+        lower_report = report_text.lower()
+        for marker in ("api_key", "apikey", "secret", "password", "authorization", "bearer"):
+            assert marker not in lower_report
+        patterns = (
+            r"(?i)(?:api[_-]?key|password|authorization)\s*[:=]\s*[^\s,;]+",
+            r"(?i)\bbearer\s+[a-z0-9._~+/=-]{8,}",
+            r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+            r"\bAKIA[0-9A-Z]{16}\b",
+            r"\bgh[pousr]_[A-Za-z0-9]{20,}\b",
         )
+        assert not any(re.search(pattern, report_text) for pattern in patterns)
+        assert "TEST_SECRET_SENTINEL_DO_NOT_LEAK" not in report_text
 
-        discovery = load_json(Path(__file__).resolve().parents[1] / "artifacts" / "live-discovery" / "discovery10_20260911T002503Z_discovery_2117fc60.json")
-        fa = extract_failure_a(discovery)
-        fb = extract_failure_b(discovery)
-        fa_analysis = load_json(Path(__file__).resolve().parents[1] / "tests" / "analysis_outputs" / "failure_a_analysis.json")
-        fb_analysis = load_json(Path(__file__).resolve().parents[1] / "tests" / "analysis_outputs" / "failure_b_analysis.json")
-        counterfactual = load_json(Path(__file__).resolve().parents[1] / "artifacts" / "live-counterfactual" / "counterfactual_20260911T234703Z_scenario_run_fd0fa2a6.json")
-        offline = extract_offline_validation_result()
+    def test_report_generation_is_deterministic_for_committed_fixtures(self):
+        with tempfile.TemporaryDirectory(prefix="arl-report-repeat-") as output:
+            markdown_path, json_path = generate_reports(Path(output))
+            assert json.loads(json_path.read_text(encoding="utf-8")) == self.json_report
+            assert markdown_path.read_text(encoding="utf-8") == self.markdown_report
 
-        json_report_2 = build_json_report(discovery, fa, fb, fa_analysis, fb_analysis, counterfactual, offline)
-        markdown_2 = build_markdown_report(discovery, fa, fb, fa_analysis, fb_analysis, counterfactual, offline)
-
-        assert json_report_2 == self.json_report
-        assert markdown_2 == self.markdown_report
-
-    # 14. Missing artifact produces a clear failure
-    def test_missing_artifact_fails_clear(self):
-        """14. Missing artifact produces a clear failure."""
-        from scripts.generate_demo_report import load_json
-        missing_path = Path(__file__).resolve().parents[1] / "artifacts" / "live-discovery" / "nonexistent.json"
+    def test_missing_fixture_fails_clearly(self):
+        missing = _REPO_ROOT / "tests" / "fixtures" / "discovery" / "missing.json"
         try:
-            load_json(missing_path)
-            assert False, "Should have raised FileNotFoundError"
-        except FileNotFoundError as e:
-            assert "Required artifact not found" in str(e)
+            load_json(missing)
+        except FileNotFoundError as exc:
+            assert "Required artifact not found" in str(exc)
+        else:
+            raise AssertionError("Missing fixture should raise FileNotFoundError")
 
 
 if __name__ == "__main__":

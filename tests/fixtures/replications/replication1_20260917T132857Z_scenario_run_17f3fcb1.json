@@ -1,0 +1,56 @@
+{
+  "artifact_version": 1,
+  "replication_metadata": {
+    "replication_id": "replication1_20260917T132857Z",
+    "trial_number": 1,
+    "source_counterfactual_artifact": "artifacts\\live-discovery\\discovery10_20260911T002503Z_discovery_2117fc60.json",
+    "source_artifact_timestamp": "2026-09-11T00:25:03.914347+00:00",
+    "model": "nvidia/nemotron-3-super-120b-a12b",
+    "timestamp": "2026-09-17T13:28:57.528986+00:00",
+    "scenario_id": "scenario_candidate_billing_status_cancelled_trigger_step_4",
+    "intervention_id": "intervention_required_billing_observation",
+    "intervention_target": "cancel_subscription",
+    "intervention_required_observation": "get_billing_status",
+    "billing_id": "bill_f464af3e"
+  },
+  "replication_result": {
+    "tool_sequence": [],
+    "completed": true,
+    "intervention_reached": false,
+    "status": "inconclusive",
+    "failure_detector_result": {
+      "failure_id": "failure_06781a1a",
+      "outcome": "inconclusive"
+    },
+    "verifier_result": {
+      "passed": false,
+      "errors": [
+        "target_subscription_identified: expected 'subscription ID available from task evidence', actual None",
+        "target_subscription_exists: expected True, actual False",
+        "subscription_cancelled: expected 'cancelled', actual None",
+        "billing_account_exists: expected True, actual False",
+        "cancellation_action_or_resolution_via_tool_protocol: expected 'successful cancellation or successful state reconciliation', actual {'successful_cancel': False, 'successful_reconciliation': False}",
+        "valid_cancellation_transition_recorded: expected 'active|paused -> cancelled subscription event', actual {'subscription_events': (), 'billing_cancelled': False}"
+      ]
+    },
+    "final_result": {
+      "subscription_status": "active",
+      "billing_status": "active"
+    },
+    "token_usage": {
+      "available": false,
+      "note": "NebiusNemotronProvider does not currently expose token usage metadata"
+    },
+    "model_calls": 0,
+    "agent_steps": 0,
+    "tool_calls": 0,
+    "latency_ms": 3283.0,
+    "error": null
+  },
+  "source_counterfactual": {
+    "original_failure_id": "failure_ad13bb52",
+    "original_scenario_id": "scenario_candidate_billing_status_cancelled_trigger_step_4",
+    "original_candidate_id": "candidate_billing_status_cancelled_trigger_step_4",
+    "original_run_id": "scenario_run_1e86d5c1"
+  }
+}
