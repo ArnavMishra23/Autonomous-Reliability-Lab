@@ -42,12 +42,15 @@
   // =========================================================================
   async function loadReport() {
     try {
-      // Try relative path first (when served from repo root)
-      let response = await fetch('../../reports/autonomous_reliability_report.json');
-      if (!response.ok) {
-        // Try absolute path from current page
-        response = await fetch('/reports/autonomous_reliability_report.json');
-      }
+      // In the repository demo the UI is under /apps/web/; in the Pages build
+      // it is copied to the site root. Both paths stay relative to the host base.
+      const configuredUrl = document.querySelector('meta[name="arl-report-url"]')?.content;
+      const reportUrl = configuredUrl || (
+        window.location.pathname.includes('/apps/web/')
+          ? '../../reports/autonomous_reliability_report.json'
+          : 'reports/autonomous_reliability_report.json'
+      );
+      const response = await fetch(reportUrl, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

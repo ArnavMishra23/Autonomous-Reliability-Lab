@@ -42,6 +42,8 @@ data/
 tmp/
 artifacts/
 reports/
+_site/
+.arl-pages-site-owner
 
 # Python build artifacts
 build/

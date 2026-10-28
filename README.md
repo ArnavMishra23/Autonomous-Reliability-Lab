@@ -91,6 +91,12 @@ On macOS or Linux, use `.venv/bin/python` for the commands above.
 
 Then open `http://127.0.0.1:8080/apps/web/`. Start the server from the repository root so the UI can fetch `reports/autonomous_reliability_report.json`.
 
+## Public test build
+
+The target GitHub Pages URL is [https://arnavmishra23.github.io/Autonomous-Reliability-Lab/](https://arnavmishra23.github.io/Autonomous-Reliability-Lab/). The `Build and deploy evidence demo` workflow creates the report from committed fixtures, runs deterministic offline validation, and packages only the dashboard assets and sanitized JSON report. To build the same package locally, run `python scripts/build_pages_site.py`; it writes the generated static site to the ignored `_site/` directory.
+
+The dashboard is read-only. It displays saved experiment records and deterministic offline validation; it does not call Nemotron, Nebius, or any live model API. The saved live counterfactual remains inconclusive because its intervention was not reached. In repository Settings → Pages → Build and deployment, choose **GitHub Actions** as the publishing source before the first deployment.
+
 The root requirements file contains the project’s direct test/provider dependencies rather than a full environment snapshot. `openai` and `python-dotenv` support the optional live provider; the fixture-backed report, offline replay, and UI do not require `.env` credentials or network access. The API scaffold under `apps/api/` is separate from the static demo.
 
 ## Live provider workflows

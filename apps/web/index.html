@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Autonomous Reliability Lab — Find the failures your agent doesn't know to test for</title>
+    <meta name="arl-report-url" content="../../reports/autonomous_reliability_report.json">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,13 +13,10 @@
         <p>Loading demo report...</p>
     </div>
 
-    <div id="error" class="error hidden">
+    <div id="error" class="error hidden" role="alert">
         <h2>Demo Report Unavailable</h2>
         <p>The demo report could not be loaded.</p>
-        <p>Generate it with:</p>
-        <code>python scripts/generate_demo_report.py</code>
-        <p>Then serve from repository root:</p>
-        <code>python -m http.server</code>
+        <p>Refresh the page later. The report is generated from saved evidence and may be temporarily unavailable during deployment.</p>
     </div>
 
     <div id="app" class="app">
@@ -47,6 +45,7 @@
             <span style="margin-inline-start:auto">DISCOVER → EXPLAIN → REPAIR → PRESERVE → VALIDATION</span>
         </div>
         <main>
+            <aside class="demo-notice" role="note">Evidence-backed demo · Uses saved experiment records and deterministic offline validation. No live model calls are triggered by this page.</aside>
             <section class="screen active" id="screen-discover" role="tabpanel" aria-labelledby="tab-discover" data-title="DISCOVER — controlled variation sweep">
                 <div class="eyebrow">SCREEN 01 · RECORDED EXPERIMENT <span class="src rec">RECORDED REAL EXPERIMENT</span></div>
                 <h1>Discover</h1>
@@ -74,14 +73,6 @@
                 <span class="kbd-hint"><kbd>←</kbd> <kbd>→</kbd> navigate &nbsp;·&nbsp; <kbd>Home</kbd> <kbd>End</kbd> &nbsp;·&nbsp; <kbd>Space</kbd> next</span>
             </div>
         </footer>
-    </div>
-    <div id="error" class="error hidden">
-        <h2>Demo Report Unavailable</h2>
-        <p>The demo report could not be loaded.</p>
-        <p>Generate it with:</p>
-        <code>python scripts/generate_demo_report.py</code>
-        <p>Then serve from repository root:</p>
-        <code>python -m http.server</code>
     </div>
     <script id="report-data" type="application/json"></script>
     <script src="app.js"></script>
